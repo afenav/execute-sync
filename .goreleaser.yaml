@@ -8,7 +8,7 @@ before:
     - go fmt ./...
 
 builds:
-  - id: execute-sync
+  - id: execute-sync-amd64
     main: ./src/
     goos:
       - linux
@@ -16,9 +16,23 @@ builds:
       - darwin
     goarch:
       - amd64
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+    ldflags:
+      - "-s -w"
+      - "-X main.version={{ .Version }}"
+    mod_timestamp: "{{ .CommitTimestamp }}"
+  - id: execute-sync-arm64
+    main: ./src/
+    goos:
+      - linux
+      - darwin
+    goarch:
       - arm64
     env:
-      - CGO_ENABLED=1  # required for SQLite
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
     ldflags:
       - "-s -w"
       - "-X main.version={{ .Version }}"
