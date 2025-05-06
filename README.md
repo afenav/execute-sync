@@ -103,7 +103,8 @@ Assuming you've defined the necessary variables in a local `.env` file, you can 
 docker run --rm --env-file .env ghcr.io/afenav/execute-sync 
 
 # or, better yet, with a bind mount to save sync state between runs
-docker run --rm --env-file .env -v ./state:/var/run/execute-state ghcr.io/afenav/execute-sync 
+mkdir -p state && chown 6001:6001
+docker run --rm --env-file .env -v ./state:/var/run/execute-sync ghcr.io/afenav/execute-sync 
 ```
 
 Similarly, you could do the same with Docker Compose.
