@@ -5,6 +5,7 @@ go 1.24.2
 require (
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/goloop/env v1.2.1
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/snowflakedb/gosnowflake v1.14.0
 	github.com/urfave/cli/v2 v2.27.6
 	modernc.org/sqlite v1.37.0 // pinned

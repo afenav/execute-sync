@@ -48,8 +48,10 @@ func NewDatabase(cfg config.Config) (Database, error) {
 	switch cfg.DatabaseType {
 	case "SNOWFLAKE":
 		return snowflake.NewSnowflake(cfg.DatabaseDSN, cfg.ChunkSize)
+	case "GOSQLITE":
+		return sqlite.NewSQLite("sqlite", cfg.DatabaseDSN, cfg.ChunkSize)
 	case "SQLITE":
-		return sqlite.NewSQLite(cfg.DatabaseDSN, cfg.ChunkSize)
+		return sqlite.NewSQLite("sqlite3", cfg.DatabaseDSN, cfg.ChunkSize)
 	default:
 		return nil, errors.New("unsupported database type")
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/afenav/execute-sync/src/internal/execute"
 	"github.com/gofiber/fiber/v2/log"
+	_ "github.com/mattn/go-sqlite3"
 	_ "modernc.org/sqlite"
 )
 
@@ -15,13 +16,15 @@ const SQLiteTableName string = "EXECUTE_DOCUMENTS"
 
 type SQLite struct {
 	dsn       string
+	provider  string
 	chunkSize int
 }
 
-func NewSQLite(dsn string, chunkSize int) (*SQLite, error) {
+func NewSQLite(provider string, dsn string, chunkSize int) (*SQLite, error) {
 	return &SQLite{
 		dsn:       dsn,
 		chunkSize: chunkSize,
+		provider:  provider,
 	}, nil
 }
 
@@ -47,7 +50,7 @@ func sqliteBootstrap(db *sql.DB) error {
 }
 
 func (s *SQLite) Prune() error {
-	db, err := sql.Open("sqlite", s.dsn)
+	db, err := sql.Open(s.provider, s.dsn)
 	if err != nil {
 		return fmt.Errorf("Error connecting to database: %v", err)
 	}
@@ -71,7 +74,7 @@ func (s *SQLite) Prune() error {
 }
 
 func (s *SQLite) Upload(batch_date string, nextRecord func() (map[string]interface{}, error)) (int, error) {
-	db, err := sql.Open("sqlite", s.dsn)
+	db, err := sql.Open(s.provider, s.dsn)
 	if err != nil {
 		return 0, fmt.Errorf("Error connecting to database: %v", err)
 	}
@@ -152,7 +155,7 @@ func (s *SQLite) Upload(batch_date string, nextRecord func() (map[string]interfa
 }
 
 func (s *SQLite) CreateViews(data execute.RootSchema) error {
-	db, err := sql.Open("sqlite", s.dsn)
+	db, err := sql.Open(s.provider, s.dsn)
 	if err != nil {
 		return fmt.Errorf("Error connecting to database: %v", err)
 	}
