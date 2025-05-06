@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/AFENav/execute-sync/src/internal/config"
-	"github.com/AFENav/execute-sync/src/internal/warehouses"
+	"github.com/afenav/execute-sync/src/internal/config"
+	"github.com/afenav/execute-sync/src/internal/warehouses"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/urfave/cli/v2"
 )

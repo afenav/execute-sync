@@ -1,4 +1,4 @@
-module github.com/AFENav/execute-sync
+module github.com/afenav/execute-sync
 
 go 1.24.2
 

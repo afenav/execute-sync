@@ -18,10 +18,10 @@ package warehouses
 import (
 	"errors"
 
-	"github.com/AFENav/execute-sync/src/internal/config"
-	"github.com/AFENav/execute-sync/src/internal/execute"
-	"github.com/AFENav/execute-sync/src/internal/warehouses/snowflake"
-	"github.com/AFENav/execute-sync/src/internal/warehouses/sqlite"
+	"github.com/afenav/execute-sync/src/internal/config"
+	"github.com/afenav/execute-sync/src/internal/execute"
+	"github.com/afenav/execute-sync/src/internal/warehouses/snowflake"
+	"github.com/afenav/execute-sync/src/internal/warehouses/sqlite"
 )
 
 type Database interface {

@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/AFENav/execute-sync/src/internal/execute"
+	"github.com/afenav/execute-sync/src/internal/execute"
 	"github.com/gofiber/fiber/v2/log"
 	_ "github.com/snowflakedb/gosnowflake"
 )

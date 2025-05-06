@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/AFENav/execute-sync/src/internal/config"
+	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/urfave/cli/v2"
 )
 

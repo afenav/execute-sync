@@ -1,6 +1,6 @@
 services:
   sync:
-    image: ghcr.io/AFENav/execute-sync:${TAG:-latest}
+    image: ghcr.io/afenav/execute-sync:${TAG:-latest}
     environment:
       - EXECUTESYNC_DATABASE_TYPE=${EXECUTESYNC_DATABASE_TYPE}
       - EXECUTESYNC_DATABASE_DSN=${EXECUTESYNC_DATABASE_DSN}

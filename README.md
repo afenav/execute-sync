@@ -100,10 +100,10 @@ Assuming you've defined the necessary variables in a local `.env` file, you can 
 **NOTE that the sync high-water mark is stored in `/var/run/execute-sync`, and it's usually a good idea to mount a volume to that location to preserve state across runs.**
 
 ```
-docker run --rm --env-file .env docker.io/AFENav/execute-sync 
+docker run --rm --env-file .env docker.io/afenav/execute-sync 
 
 # or, better yet, with a bind mount to save sync state between runs
-docker run --rm --env-file .env -v ./state:/var/run/execute-state docker.io/AFENav/execute-sync 
+docker run --rm --env-file .env -v ./state:/var/run/execute-state docker.io/afenav/execute-sync 
 ```
 
 Similarly, you could do the same with Docker Compose.
@@ -111,7 +111,7 @@ Similarly, you could do the same with Docker Compose.
 ```docker
 services:
   sync:
-    image: docker.io/AFENav/execute-sync:${TAG:-latest}
+    image: docker.io/afenav/execute-sync:${TAG:-latest}
     environment:
       - EXECUTESYNC_DATABASE_TYPE=${EXECUTESYNC_DATABASE_TYPE}
       - EXECUTESYNC_DATABASE_DSN=${EXECUTESYNC_DATABASE_DSN}
@@ -131,7 +131,7 @@ volumes:
 To run a different command than the default `sync`...
 
 ```
-docker run --rm --env-file .env docker.io/AFENav/execute-sync /app/execute-sync push -f
+docker run --rm --env-file .env docker.io/afenav/execute-sync /app/execute-sync push -f
 ```
 
 ## Development
