@@ -1,0 +1,32 @@
+[tools]
+go = "latest"
+goreleaser = "latest"
+sqlite = "latest"
+
+[env]
+REPO_OWNER="jsc"
+
+[tasks.launch]
+description="Launch Execute-Sync"
+run = "go run ./src"
+
+[tasks.upgrade-deps]
+description="Bump all GoLang deps to latest versions"
+run = "go get -u ./..."
+
+[tasks.package-test]
+description="Run a test build of everything (requires Docker)"
+run = "goreleaser release --snapshot --clean"
+
+[tasks.release]
+description="Tag/Publish a release (based on VERSION environment variable)"
+run = '''
+if [ -z "${VERSION}" ]; then
+  echo "Error: VERSION variable is not set."
+  echo "Usage: VERSION=<version: i.e. 0.1.10> mise run release"
+  exit 1
+fi
+git tag -a v${VERSION} -m "Release v${VERSION}"
+git push origin v${VERSION}
+'''
+

@@ -1,0 +1,4 @@
+.env
+dist/
+last_sync_date.txt
+*.sqlite

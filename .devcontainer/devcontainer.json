@@ -1,0 +1,28 @@
+{
+    "name": "Go Development Container",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.Go",
+                "GitHub.copilot"
+            ],
+            "settings": {
+                "go.useLanguageServer": true, // Enable the Go language server
+                "go.formatTool": "gofmt", // Default formatter
+                "go.lintTool": "golangci-lint", // Default linter
+                "go.testFlags": [
+                    "-v"
+                ], // Verbose test output
+                "editor.formatOnSave": true // Auto-format code on save
+            }
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {}, // Git installed
+        "ghcr.io/devcontainers/features/github-cli:1": {} // GitHub CLI
+    },
+    "postCreateCommand": "mise trust && mise install && go mod tidy"
+}
