@@ -8,7 +8,7 @@ import (
 
 	"github.com/afenav/execute-sync/src/internal/execute"
 	"github.com/gofiber/fiber/v2/log"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 const SQLiteTableName string = "EXECUTE_DOCUMENTS"
@@ -47,7 +47,7 @@ func sqliteBootstrap(db *sql.DB) error {
 }
 
 func (s *SQLite) Prune() error {
-	db, err := sql.Open("sqlite3", s.dsn)
+	db, err := sql.Open("sqlite", s.dsn)
 	if err != nil {
 		return fmt.Errorf("Error connecting to database: %v", err)
 	}
@@ -71,7 +71,7 @@ func (s *SQLite) Prune() error {
 }
 
 func (s *SQLite) Upload(batch_date string, nextRecord func() (map[string]interface{}, error)) (int, error) {
-	db, err := sql.Open("sqlite3", s.dsn)
+	db, err := sql.Open("sqlite", s.dsn)
 	if err != nil {
 		return 0, fmt.Errorf("Error connecting to database: %v", err)
 	}
@@ -152,7 +152,7 @@ func (s *SQLite) Upload(batch_date string, nextRecord func() (map[string]interfa
 }
 
 func (s *SQLite) CreateViews(data execute.RootSchema) error {
-	db, err := sql.Open("sqlite3", s.dsn)
+	db, err := sql.Open("sqlite", s.dsn)
 	if err != nil {
 		return fmt.Errorf("Error connecting to database: %v", err)
 	}

@@ -149,6 +149,8 @@ All project dependencies can be upgraded using the following:
 mise run upgrade-deps
 ```
 
+Note: The sqlite library has a fragile relationship to the libc library and requires separate/manual updating.
+
 ### Releases
 Releases builds (binaries and docker) automatically trigger when new tags are pushed to main.  Release notes are automatically created based on commit messages.
 
