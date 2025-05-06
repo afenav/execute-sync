@@ -127,7 +127,7 @@ func ResolveConfig(cCtx *cli.Context) Config {
 
 	// Special case for SQLITE.  If a DSN isn't provided, default to storing the DB in the state
 	// directory.  This plays nicely with Dockerized environments.
-	if cfg.DatabaseType == "SQLITE" && cfg.DatabaseDSN == "" {
+	if (cfg.DatabaseType == "SQLITE" || cfg.DatabaseType == "GOSQLITE") && cfg.DatabaseDSN == "" {
 		cfg.DatabaseDSN = filepath.Join(cfg.StateDir, "execute.sqlite")
 	}
 
