@@ -12,7 +12,7 @@ func CloneCommand() *cli.Command {
 	return &cli.Command{
 		Name:        "clone",
 		Usage:       "Clone",
-		Description: "Combined Create Views, Full Sync and Prune",
+		Description: "Combined Create Views and Full Sync",
 		Action: func(cCtx *cli.Context) error {
 			return withDatabase(cCtx, func(db warehouses.Database, cfg config.Config) error {
 
@@ -35,11 +35,6 @@ func CloneCommand() *cli.Command {
 				}
 				log.Info("Sync Completed")
 
-				if err := db.Prune(); err != nil {
-					return err
-				}
-
-				log.Info("Pruning Completed!")
 				return nil
 			})
 		},
