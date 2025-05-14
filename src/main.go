@@ -33,6 +33,7 @@ func main() {
 			PushCommand(),
 			CreateViewsCommand(),
 			PruneCommand(),
+			CloneCommand(),
 			GenCommand(),
 			{
 				Name:        "version",
