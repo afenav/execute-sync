@@ -79,7 +79,7 @@ func FetchSchema(cfg config.Config) (RootSchema, error) {
 	// Parse the retrieve document as JSON so that we can extract metadata fields
 	var data RootSchema
 	if err := json.Unmarshal(bodyBytes, &data); err != nil {
-		return nil, fmt.Errorf("Error parsing schema: %s\n", err)
+		return nil, fmt.Errorf("parsing schema: %v", err)
 	}
 
 	return data, nil
