@@ -35,7 +35,7 @@ type RootSchema map[string]DocumentSchema
 // It takes a configuration object `cfg` containing the API endpoint and credentials.
 // The function returns a `RootSchema` representing the document schema and an error if any occurs.
 func FetchSchema(cfg config.Config) (RootSchema, error) {
-	client := &http.Client{}
+	client := &http.Client{Timeout: 30 * time.Second}
 
 	// Parse the base URL
 	parsedURL, err := url.Parse(cfg.ExecuteURL)
