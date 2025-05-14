@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/gofiber/fiber/v2/log"
