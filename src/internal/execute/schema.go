@@ -31,6 +31,9 @@ type DocumentSchema map[string]FieldMetadata
 // RootSchema represents the entire JSON structure.
 type RootSchema map[string]DocumentSchema
 
+// FetchSchema retrieves the schema of documents from the Execute API.
+// It takes a configuration object `cfg` containing the API endpoint and credentials.
+// The function returns a `RootSchema` representing the document schema and an error if any occurs.
 func FetchSchema(cfg config.Config) (RootSchema, error) {
 	client := &http.Client{}
 
