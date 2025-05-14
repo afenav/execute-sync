@@ -1,7 +1,6 @@
 package execute
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,8 +60,7 @@ func FetchSchema(cfg config.Config) (RootSchema, error) {
 	}
 
 	// Add credentials to the request (Execute uses BASIC Auth)
-	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", cfg.ExecuteKeyId, cfg.ExecuteKeySecret)))
-	req.Header.Set("Authorization", "Basic "+auth)
+	req.SetBasicAuth(cfg.ExecuteKeyId, cfg.ExecuteKeySecret)
 
 	log.Debug("Pulling schema from Execute")
 	resp, err := client.Do(req)
