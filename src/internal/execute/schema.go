@@ -74,7 +74,10 @@ func FetchSchema(cfg config.Config) (RootSchema, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %v", err)
+	}
 
 	// Parse the retrieve document as JSON so that we can extract metadata fields
 	var data RootSchema
