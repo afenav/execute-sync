@@ -124,7 +124,11 @@ func (s *Snowflake) Upload(batch_date string, nextRecord func() (map[string]inte
 	document_count := 0
 
 	tempDir := os.TempDir()
-	tempFile, err := os.CreateTemp(tempDir, fmt.Sprintf("documents_%s*.csv", batch_date))
+
+	// Sanitize batch_date to remove ':' and '-'
+	safeBatchDate := strings.ReplaceAll(strings.ReplaceAll(batch_date, ":", ""), "-", "")
+
+	tempFile, err := os.CreateTemp(tempDir, fmt.Sprintf("documents_%s*.csv", safeBatchDate))
 	if err != nil {
 		return 0, fmt.Errorf("Error creating temporary file: %v", err)
 	}
