@@ -56,7 +56,7 @@ func checkLatestVersion() {
 	currentVersion := strings.TrimPrefix(version, "v")
 
 	if latestVersion != currentVersion {
-		log.Warnf("Update available! (current: %s / available: %s)", version, latestVersion)
+		log.Warn("Update available!", "current", version, "latest", latestVersion)
 	}
 }
 
@@ -87,6 +87,7 @@ func main() {
 			PruneCommand(),
 			CloneCommand(),
 			GenCommand(),
+			UpgradeCommand(),
 			{
 				Name:        "version",
 				Aliases:     []string{"v"},

@@ -154,6 +154,12 @@ mise run upgrade-deps
 
 Note: The sqlite library has a fragile relationship to the libc library and requires separate/manual updating.
 
+### Testing Upgrades
+
+```
+go build -ldflags "-X main.version=0.1.10" -o execute-sync ./src && ./execute-sync upgrade
+```
+
 ### Releases
 Releases builds (binaries and docker) automatically trigger when new tags are pushed to main.  Release notes are automatically created based on commit messages.
 
