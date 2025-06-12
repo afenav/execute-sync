@@ -8,7 +8,7 @@ import (
 	"encoding/pem"
 	"fmt"
 
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
 )
 

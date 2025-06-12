@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/charmbracelet/log"
 	"github.com/goloop/env"
 	"github.com/urfave/cli/v2"
 )
@@ -122,7 +122,7 @@ func ResolveConfig(cCtx *cli.Context) Config {
 	}
 
 	if cfg.Quiet {
-		log.SetLevel(log.LevelWarn)
+		log.SetLevel(log.WarnLevel)
 	}
 
 	// Special case for SQLITE.  If a DSN isn't provided, default to storing the DB in the state

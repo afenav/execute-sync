@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/afenav/execute-sync/src/internal/config"
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/charmbracelet/log"
 )
 
 // FieldMetadata represents metadata for a single field.

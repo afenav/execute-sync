@@ -11,7 +11,7 @@ import (
 
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/afenav/execute-sync/src/internal/warehouses"
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,6 +20,14 @@ var (
 )
 
 func main() {
+
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    true,
+		ReportTimestamp: true,
+		Level:           log.DebugLevel,
+	})
+	log.SetDefault(logger)
+
 	app := &cli.App{
 		Usage: "Blast Execute data into a data warehouse",
 		Action: func(cCtx *cli.Context) error {

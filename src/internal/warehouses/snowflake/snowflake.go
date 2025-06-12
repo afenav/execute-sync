@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/afenav/execute-sync/src/internal/execute"
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/charmbracelet/log"
 	_ "github.com/snowflakedb/gosnowflake"
 )
 

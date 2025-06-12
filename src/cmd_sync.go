@@ -15,7 +15,7 @@ import (
 
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/afenav/execute-sync/src/internal/warehouses"
-	"github.com/gofiber/fiber/v2/log"
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
 )
 
