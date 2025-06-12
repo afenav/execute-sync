@@ -2,6 +2,8 @@
 
 **Execute Sync** is a helpful application designed to pull data from the Execute API and push it into a data warehouse (Snowflake, and SQLite) using Execute's `fetch` APIs. 
 
+[![asciicast](https://asciinema.org/a/8zJmUAKS2LRsiAfc19HMD6zPw.svg)](https://asciinema.org/a/8zJmUAKS2LRsiAfc19HMD6zPw)
+
 ## Basic Configuration
 
 At a minimum, Execute Sync requires:
