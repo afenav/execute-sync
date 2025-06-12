@@ -32,7 +32,7 @@ type GithubAsset struct {
 func UpgradeCommand() *cli.Command {
 	return &cli.Command{
 		Name:        "upgrade",
-		Aliases:     []string{"u"},
+		Aliases:     []string{},
 		Usage:       "Upgrade to the latest version",
 		Description: "Downloads and installs the latest version of execute-sync",
 		Flags: []cli.Flag{
