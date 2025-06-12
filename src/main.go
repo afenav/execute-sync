@@ -6,8 +6,11 @@ package main
    ===================================================================== */
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/afenav/execute-sync/src/internal/warehouses"
@@ -19,6 +22,44 @@ var (
 	version = "dev"
 )
 
+// checkLatestVersion checks the latest GitHub release and logs a warning if not running the latest version
+func checkLatestVersion() {
+	// Skip version check if running in dev mode
+	if version == "dev" {
+		return
+	}
+
+	// Make request to GitHub API
+	resp, err := http.Get("https://api.github.com/repos/afenav/execute-sync/releases/latest")
+	if err != nil {
+		log.Debug("Failed to check for latest version: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Debug("Failed to check for latest version: GitHub API returned status %d", resp.StatusCode)
+		return
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Debug("Failed to parse GitHub response: %v", err)
+		return
+	}
+
+	// Clean the version string (remove 'v' prefix if present)
+	latestVersion := strings.TrimPrefix(release.TagName, "v")
+	currentVersion := strings.TrimPrefix(version, "v")
+
+	if latestVersion != currentVersion {
+		log.Warnf("Update available! (current: %s / available: %s)", version, latestVersion)
+	}
+}
+
 func main() {
 
 	logger := log.NewWithOptions(os.Stderr, log.Options{
@@ -27,6 +68,9 @@ func main() {
 		Level:           log.DebugLevel,
 	})
 	log.SetDefault(logger)
+
+	// Check if running latest version
+	checkLatestVersion()
 
 	app := &cli.App{
 		Usage: "Blast Execute data into a data warehouse",
