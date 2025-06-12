@@ -47,8 +47,43 @@ func UpgradeCommand() *cli.Command {
 	}
 }
 
+// runningInContainer detects if the application is running in a container
+func runningInContainer() bool {
+	// Check for .dockerenv file which is present in Docker containers
+	_, err := os.Stat("/.dockerenv")
+	if err == nil {
+		return true
+	}
+
+	// Check for cgroup which can indicate Docker/container environment
+	cgroupContent, err := os.ReadFile("/proc/1/cgroup")
+	if err == nil && strings.Contains(string(cgroupContent), "docker") {
+		return true
+	}
+
+	// Check for environment variables that indicate container environments
+	containerEnvVars := []string{
+		"KUBERNETES_SERVICE_HOST", // Kubernetes
+		"DOCKER_CONTAINER",        // Some Docker setups
+		"container",               // systemd containerization
+	}
+
+	for _, envVar := range containerEnvVars {
+		if os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // performUpgrade handles the upgrade process
 func performUpgrade(cCtx *cli.Context) error {
+	// Check if running in a container and prevent upgrade
+	if runningInContainer() {
+		return fmt.Errorf("upgrade is disabled in containerized environments")
+	}
+
 	// Get current executable path
 	execPath, err := os.Executable()
 	if err != nil {
