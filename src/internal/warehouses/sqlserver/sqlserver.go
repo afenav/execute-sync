@@ -29,9 +29,9 @@ func NewSQLServer(dsn string, chunkSize int) (*SQLServer, error) {
 func bootstrap(db *sql.DB) error {
 	// Create the main table if it doesn't exist
 	_, err := db.Exec(fmt.Sprintf(`
-	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[%s]') AND type in (N'U'))
+	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[%s]') AND type in (N'U'))
 	BEGIN
-		CREATE TABLE [dbo].[%s] (
+		CREATE TABLE [%s] (
 			BATCH_DATE DATETIME2 NOT NULL,
 			TYPE NVARCHAR(50) NOT NULL,
 			ID NVARCHAR(50) NOT NULL,
@@ -45,7 +45,7 @@ func bootstrap(db *sql.DB) error {
 		)
 	END
 	`, TableName, TableName, TableName))
-	
+
 	if err != nil {
 		return fmt.Errorf("error creating table: %v", err)
 	}
@@ -66,31 +66,23 @@ func (s *SQLServer) Prune() error {
 
 	// Delete records that are not the latest version for each TYPE, ID, VERSION
 	_, err = db.Exec(fmt.Sprintf(`
-	DELETE FROM [dbo].[%s]
-	WHERE (TYPE, ID, VERSION, BATCH_DATE) NOT IN (
-		SELECT TYPE, ID, VERSION, MAX(BATCH_DATE)
-		FROM [dbo].[%s]
-		GROUP BY TYPE, ID, VERSION
+	DELETE FROM [%s]
+	WHERE NOT EXISTS (
+		SELECT 1 FROM [%s] t2
+		WHERE [%s].TYPE = t2.TYPE
+		  AND [%s].ID = t2.ID
+		  AND [%s].VERSION = t2.VERSION
+		  AND [%s].BATCH_DATE = (
+			SELECT MAX(BATCH_DATE) FROM [%s] t3
+			WHERE t3.TYPE = t2.TYPE
+			  AND t3.ID = t2.ID
+			  AND t3.VERSION = t2.VERSION
+		)
 	)
-	`, TableName, TableName))
+	`, TableName, TableName, TableName, TableName, TableName, TableName, TableName))
 
 	if err != nil {
 		return fmt.Errorf("error pruning data: %v", err)
-	}
-
-	_, err = db.Exec(fmt.Sprintf(`
-	DELETE FROM [dbo].[%s] 
-	WHERE DELETED = 1 AND
-		(TYPE, ID, BATCH_DATE) IN (
-		SELECT a.TYPE, a.ID, MAX(a.BATCH_DATE)
-		FROM [dbo].[%s] a
-		WHERE a.DELETED = 1
-		GROUP BY a.TYPE, a.ID
-	)
-	`, TableName, TableName))
-
-	if err != nil {
-		return fmt.Errorf("error pruning deleted records: %v", err)
 	}
 
 	return nil
@@ -112,121 +104,102 @@ func (s *SQLServer) Upload(batch_date string, nextRecord func() (map[string]inte
 	if err != nil {
 		return 0, fmt.Errorf("error beginning transaction: %v", err)
 	}
-	
+
 	// Prepare insert statement
 	stmt, err := tx.Prepare(fmt.Sprintf(`
-	INSERT INTO [dbo].[%s] (
+	INSERT INTO [%s] (
 		BATCH_DATE, TYPE, ID, VERSION, CHUNK, AUTHOR, DATE, DELETED, DATA
 	) VALUES (
-		?, ?, ?, ?, ?, ?, ?, ?, ?
+		@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9
 	)`, TableName))
-	
+
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("error preparing statement: %v", err)
 	}
 	defer stmt.Close()
-	
+
 	count := 0
+
 	for {
-		record, err := nextRecord()
+		data, err := nextRecord()
+
+		// Terminate at EOF
 		if err != nil {
-			tx.Rollback()
-			return count, err
-		}
-		
-		// End of records
-		if record == nil {
-			break
-		}
-		
-		// Extract fields from the record
-		docType, ok := record["type"].(string)
-		if !ok {
-			tx.Rollback()
-			return count, fmt.Errorf("error extracting type from record")
-		}
-		
-		id, ok := record["id"].(string)
-		if !ok {
-			tx.Rollback()
-			return count, fmt.Errorf("error extracting id from record")
-		}
-		
-		version, ok := record["version"].(float64)
-		if !ok {
-			tx.Rollback()
-			return count, fmt.Errorf("error extracting version from record")
-		}
-		
-		author, _ := record["author"].(string)
-		
-		date, ok := record["date"].(string)
-		if !ok {
-			tx.Rollback()
-			return count, fmt.Errorf("error extracting date from record")
-		}
-		
-		deleted, _ := record["deleted"].(bool)
-		
-		// Process data into chunks
-		data := record["data"]
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			tx.Rollback()
-			return count, fmt.Errorf("error marshalling data: %v", err)
-		}
-		
-		// Handle data in chunks if it's too large
-		dataStr := string(jsonData)
-		chunkCount := 1
-		
-		if len(dataStr) > s.chunkSize {
-			log.Debug("Large document detected, splitting into chunks", "type", docType, "id", id, "size", len(dataStr))
-			chunkCount = (len(dataStr) + s.chunkSize - 1) / s.chunkSize
-		}
-		
-		for chunk := 0; chunk < chunkCount; chunk++ {
-			start := chunk * s.chunkSize
-			end := (chunk + 1) * s.chunkSize
-			if end > len(dataStr) {
-				end = len(dataStr)
+			if err.Error() == "EOF" {
+				break
 			}
-			
-			chunkData := dataStr[start:end]
-			
+		}
+
+		// Skip empty records
+		if data == nil {
+			continue
+		}
+
+		// Apply chunking
+		var chunks []map[string]interface{}
+
+		// Iterate through the top-level keys
+		for key, value := range data {
+			// Is this a list key?
+			if list, ok := value.([]interface{}); ok {
+				// Does this list have #items > chunk size?
+				if len(list) > s.chunkSize {
+					for i := 0; i < len(list); i += s.chunkSize {
+						end := i + s.chunkSize
+						if end > len(list) {
+							end = len(list)
+						}
+
+						chunks = append(chunks, map[string]interface{}{
+							"DOCUMENT_ID": data["DOCUMENT_ID"].(string),
+							key:           list[i:end],
+						})
+					}
+
+					// Remove the large list from the original document
+					delete(data, key)
+				}
+			}
+		}
+
+		// Add the modified original document back to the result
+		chunks = append([]map[string]interface{}{data}, chunks...)
+
+		for i := 0; i < len(chunks); i++ {
+			chunkBytes, _ := json.Marshal(chunks[i])
 			_, err = stmt.Exec(
 				batch_date,
-				docType,
-				id,
-				int(version),
-				chunk,
-				author,
-				date,
-				deleted,
-				chunkData,
-			)
-			
+				data["$TYPE"].(string),
+				data["DOCUMENT_ID"].(string),
+				int(data["$VERSION"].(float64)),
+				i,
+				data["$AUTHOR_ID"].(string),
+				data["$DATE"].(string),
+				data["$DELETED"].(bool),
+				string(chunkBytes))
+
 			if err != nil {
+				log.Infof("Error writing record to SQL: %s\n", err)
 				tx.Rollback()
-				return count, fmt.Errorf("error inserting record: %v", err)
+				return count, err
 			}
-			
-			count++
 		}
+
+		count += 1
+
 	}
-	
+
 	// Commit transaction
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
 		return count, fmt.Errorf("error committing transaction: %v", err)
 	}
-	
+
 	return count, nil
 }
 
-// CreateViews creates views for the data
-func (s *SQLServer) CreateViews(root execute.RootSchema) error {
+func (s *SQLServer) CreateViews(data execute.RootSchema) error {
 	db, err := sql.Open("sqlserver", s.dsn)
 	if err != nil {
 		return fmt.Errorf("error connecting to database: %v", err)
@@ -236,124 +209,119 @@ func (s *SQLServer) CreateViews(root execute.RootSchema) error {
 	}
 	defer db.Close()
 
-	// First create a base view of the latest data
+	// Drop and create _LATEST_ALL_VERSIONS view
 	_, err = db.Exec(fmt.Sprintf(`
-	IF EXISTS (SELECT * FROM sys.views WHERE name = 'EXECUTE_LATEST')
-	    DROP VIEW EXECUTE_LATEST;
-	`))
-	if err != nil {
-		return fmt.Errorf("error dropping base view: %v", err)
-	}
-
-	_, err = db.Exec(fmt.Sprintf(`
-	CREATE VIEW EXECUTE_LATEST AS
-	SELECT 
-		d1.TYPE,
-		d1.ID,
-		d1.VERSION,
-		d1.AUTHOR,
-		d1.DATE,
-		d1.BATCH_DATE,
-		d1.DELETED,
-		(
-			SELECT STRING_AGG(d2.DATA, '') 
-			FROM [dbo].[%s] d2
-			WHERE 
-				d2.TYPE = d1.TYPE AND 
-				d2.ID = d1.ID AND
-				d2.VERSION = d1.VERSION AND
-				d2.BATCH_DATE = d1.BATCH_DATE
-			ORDER BY d2.CHUNK
-		) AS DATA
-	FROM [dbo].[%s] d1
-	WHERE (d1.TYPE, d1.ID, d1.VERSION, d1.BATCH_DATE) IN (
-		SELECT TYPE, ID, VERSION, MAX(BATCH_DATE)
-		FROM [dbo].[%s]
+	CREATE OR ALTER VIEW %s_LATEST_ALL_VERSIONS AS
+	SELECT ed.*
+	FROM %s ed
+	INNER JOIN (
+		SELECT TYPE, ID, VERSION, MAX(BATCH_DATE) AS BATCH_DATE
+		FROM %s
 		GROUP BY TYPE, ID, VERSION
-	)
-	AND d1.CHUNK = 0
-	AND d1.DELETED = 0
+	) latest
+	ON ed.TYPE = latest.TYPE
+	   AND ed.ID = latest.ID
+	   AND ed.VERSION = latest.VERSION
+	   AND ed.BATCH_DATE = latest.BATCH_DATE;
 	`, TableName, TableName, TableName))
-
 	if err != nil {
-		return fmt.Errorf("error creating base view: %v", err)
+		return fmt.Errorf("error creating batch latest view: %v", err)
 	}
 
-	// Create views for each document type
-	for docType, schema := range root {
-		create_view(db, docType, docType, "EXECUTE_LATEST", schema, "", "")
+	// Drop and create _LATEST view
+	_, err = db.Exec(fmt.Sprintf(`
+	CREATE OR ALTER VIEW %s_LATEST AS
+	SELECT ed.*
+	FROM %s_LATEST_ALL_VERSIONS ed
+	INNER JOIN (
+		SELECT TYPE, ID, MAX(VERSION) AS VERSION
+		FROM %s
+		GROUP BY TYPE, ID
+	) latest
+	ON ed.TYPE = latest.TYPE
+	   AND ed.ID = latest.ID
+	   AND ed.VERSION = latest.VERSION;
+	`, TableName, TableName, TableName))
+	if err != nil {
+		return fmt.Errorf("error creating latest view: %v", err)
+	}
+
+	for key, value := range data {
+		log.Infof("Creating Helper View `%s`", key)
+		create_view(db, key, key, "", value, "data", "$", "")
 	}
 
 	return nil
 }
 
-// create_view creates a view for a specific document type
-func create_view(db *sql.DB, docType string, tableName string, parentTable string, record execute.DocumentSchema, root string, flatten string) {
-	safeTable := sanitizeName(tableName)
-	
-	// Drop existing view
-	_, err := db.Exec(fmt.Sprintf("IF EXISTS (SELECT * FROM sys.views WHERE name = '%s') DROP VIEW %s", safeTable, safeTable))
-	if err != nil {
-		log.Error("Error dropping view", "type", docType, "error", err)
-		return
-	}
-	
-	// Build the columns list
-	columnsList := []string{
-		"ID",
-		"VERSION",
-		"AUTHOR",
-		"DATE",
-		"BATCH_DATE",
-	}
-	
-	// Add fields
-	for field, fieldMeta := range record {
-		if fieldMeta.Type != "RECORD" {
-			if root == "" {
-				columnsList = append(columnsList, fmt.Sprintf("JSON_VALUE(DATA, '$.%s') as %s", field, sanitizeName(field)))
-			} else {
-				columnsList = append(columnsList, fmt.Sprintf("JSON_VALUE(DATA, '$.%s.%s') as %s", root, field, sanitizeName(field)))
-			}
-		}
-	}
-	
-	// Create the view
-	_, err = db.Exec(fmt.Sprintf(`
-	CREATE VIEW %s AS
-	SELECT 
-		%s
-	FROM %s
-	WHERE TYPE = '%s'
-	`, safeTable, strings.Join(columnsList, ",\n\t\t"), parentTable, docType))
-	
-	if err != nil {
-		log.Error("Error creating view", "type", docType, "error", err)
-		return
-	}
-	
-	log.Info("Created view", "view", safeTable)
-	
-	// Process nested objects
-	for field, fieldMeta := range record {
-		if fieldMeta.Type == "RECORD" && fieldMeta.RecordType != nil {
-			fieldRoot := field
-			if root != "" {
-				fieldRoot = root + "." + field
-			}
-			
-			nestedSchema := execute.DocumentSchema{}
-			for subField, subMeta := range fieldMeta.RecordType {
-				nestedSchema[subField] = subMeta
-			}
-			
-			nestedTableName := tableName + "_" + field
-			create_view(db, docType, nestedTableName, parentTable, nestedSchema, fieldRoot, "")
-		}
-	}
-}
+func create_view(db *sql.DB, docType string, tableName string, parentTable string, record execute.DocumentSchema, dataField string, root string, flatten string) {
 
-// sanitizeName sanitizes a name to be used as an SQL Server identifier
-func sanitizeName(name string) string {
-	return strings.Replace(name, "-", "_", -1)
+	var columns []string
+
+	columns = append(columns, "id as DOCUMENT_ID")
+
+	if dataField == "value" {
+		// special case to pull out the listitem_id for child custom records on list
+		columns = append(columns, "CAST(JSON_VALUE(value, '$.LISTITEM_ID') as nvarchar) as LISTITEM_ID")
+	}
+
+	if parentTable == "" {
+		columns = append(columns, "deleted as [_DELETED]")
+		columns = append(columns, "author as [_AUTHOR]")
+		columns = append(columns, "version as [_VERSION]")
+		columns = append(columns, "date as [_DATE]")
+	}
+
+	for field, metadata := range record {
+		if field == "DOCUMENT_ID" {
+			continue
+		}
+		if field == "LISTITEM_ID" {
+			continue
+		}
+		jsonPath := root + "." + field
+		switch metadata.Type {
+		case "TEXT", "GUID", "UWI":
+			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS NVARCHAR(255)) as %s", dataField, jsonPath, field))
+		case "INTEGER":
+			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS INT) as %s", dataField, jsonPath, field))
+		case "DECIMAL":
+			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS FLOAT) as %s", dataField, jsonPath, field))
+		case "BOOLEAN":
+			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS BIT) as %s", dataField, jsonPath, field))
+		case "DATETIME":
+			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS DATETIME2) as %s", dataField, jsonPath, field))
+		case "DOCUMENT":
+			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s.DOCUMENT_ID') AS NVARCHAR(255)) as %s /* References %s.DOCUMENT_ID */", dataField, jsonPath, field, *metadata.DocumentType))
+		case "RECORD":
+			create_view(db, docType, fmt.Sprintf("%s_%s", tableName, field), tableName, metadata.RecordType, dataField, fmt.Sprintf("%s.%s", root, field), flatten)
+		case "RECORD LIST":
+			// Don't support LIST in LIST
+			if dataField == "value" {
+				continue
+			}
+			create_view(db, docType, fmt.Sprintf("%s_%s", tableName, field), tableName, metadata.RecordType, "value", "$", fmt.Sprintf(" OUTER APPLY OPENJSON(data, '%s') AS value", jsonPath))
+		default:
+			log.Infof("Skipping %s:%s of unknown type %s", tableName, field, metadata.Type)
+		}
+	}
+
+	cmd := fmt.Sprintf("create or alter view [%s] as select %s from %s_LATEST%s where %s_LATEST.type='%s'",
+		tableName,
+		strings.Join(columns, ", "),
+		TableName,
+		flatten,
+		TableName,
+		docType)
+
+	if flatten == "" {
+		cmd = cmd + " and chunk=0"
+	}
+
+	_, err := db.Exec(cmd)
+	if err != nil {
+		log.Errorf("Error creating %s: %v", tableName, err)
+		log.Debug(cmd)
+	}
+
 }
