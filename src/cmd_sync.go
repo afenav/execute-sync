@@ -159,6 +159,7 @@ func fetchAndProcessDocuments(cfg config.Config, db warehouses.Database) (int, e
 		// Upload all documents in this batch.  Note that we're passing in a
 		// reader callback so that we're not assembling all these documents in
 		// memory since this can easily become very large.
+		log.Debug("Uploading batch to warehouse")
 		cnt, err := db.Upload(batch_date, nextRecord)
 		if err != nil {
 			return 0, err
