@@ -126,11 +126,11 @@ Assuming you've defined the necessary variables in a local `.env` file, you can 
 **NOTE that the sync high-water mark is stored in `/var/run/execute-sync`, and it's usually a good idea to mount a volume to that location to preserve state across runs.**
 
 ```
-docker run --rm --env-file .env ghcr.io/afenav/execute-sync 
+docker run --rm -it --env-file .env ghcr.io/afenav/execute-sync 
 
 # or, better yet, with a bind mount to save sync state between runs
 mkdir -p state && chown 6001:6001
-docker run --rm --env-file .env -v ./state:/var/run/execute-sync ghcr.io/afenav/execute-sync 
+docker run --rm -it --env-file .env -v ./state:/var/run/execute-sync ghcr.io/afenav/execute-sync 
 ```
 
 Similarly, you could do the same with Docker Compose.
@@ -158,7 +158,7 @@ volumes:
 To run a different command than the default `sync`...
 
 ```
-docker run --rm --env-file .env ghcr.io/afenav/execute-sync /app/execute-sync push -f
+docker run --rm -it --env-file .env ghcr.io/afenav/execute-sync push -f
 ```
 
 ## Development
