@@ -256,15 +256,50 @@ func (s *SQLServer) CreateViews(data execute.RootSchema) error {
 
 func create_view(db *sql.DB, docType string, tableName string, parentTable string, record execute.DocumentSchema, dataField string, root string, flatten string) {
 
-	var columns []string
+	var withClauses []string
 
-	columns = append(columns, "id as DOCUMENT_ID")
-
-	if dataField == "value" {
-		// special case to pull out the listitem_id for child custom records on list
-		columns = append(columns, "CAST(JSON_VALUE(value, '$.LISTITEM_ID') as nvarchar) as LISTITEM_ID")
+	// Build the WITH clause for OPENJSON for all scalar fields
+	for field, metadata := range record {
+		if field == "DOCUMENT_ID" || field == "LISTITEM_ID" {
+			continue
+		}
+		jsonPath := root + "." + field
+		var sqlType string
+		switch metadata.Type {
+		case "TEXT", "GUID", "UWI":
+			sqlType = "NVARCHAR(MAX)"
+		case "INTEGER":
+			sqlType = "INT"
+		case "DECIMAL":
+			sqlType = "FLOAT"
+		case "BOOLEAN":
+			sqlType = "BIT"
+		case "DATETIME":
+			sqlType = "DATETIME2"
+		case "DOCUMENT":
+			withClauses = append(withClauses, fmt.Sprintf("[obj_%s] NVARCHAR(255) '%s.DOCUMENT_ID'", field, jsonPath))
+			continue
+		case "RECORD":
+			create_view(db, docType, fmt.Sprintf("%s_%s", tableName, field), tableName, metadata.RecordType, dataField, jsonPath, flatten)
+			continue
+		case "RECORD LIST":
+			if dataField == "value" {
+				continue
+			}
+			// Recurse for the list items, using CROSS APPLY OPENJSON
+			create_view(db, docType, fmt.Sprintf("%s_%s", tableName, field), tableName, metadata.RecordType, "value", "$", fmt.Sprintf(" CROSS APPLY OPENJSON(%s, '%s.%s') AS value", dataField, root, field))
+			continue
+		default:
+			log.Infof("Skipping %s:%s of unknown type %s", tableName, field, metadata.Type)
+			continue
+		}
+		withClauses = append(withClauses, fmt.Sprintf("[obj_%s] %s '$.%s'", field, sqlType, field))
 	}
 
+	columns := []string{"id as DOCUMENT_ID"}
+	if dataField == "value" {
+		columns = append(columns, "CAST(JSON_VALUE(value, '$.LISTITEM_ID') as nvarchar) as LISTITEM_ID")
+	}
 	if parentTable == "" {
 		columns = append(columns, "deleted as [_DELETED]")
 		columns = append(columns, "author as [_AUTHOR]")
@@ -272,48 +307,24 @@ func create_view(db *sql.DB, docType string, tableName string, parentTable strin
 		columns = append(columns, "date as [_DATE]")
 	}
 
-	for field, metadata := range record {
-		if field == "DOCUMENT_ID" {
-			continue
-		}
-		if field == "LISTITEM_ID" {
-			continue
-		}
-		jsonPath := root + "." + field
-		switch metadata.Type {
-		case "TEXT", "GUID", "UWI":
-			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS NVARCHAR(255)) as %s", dataField, jsonPath, field))
-		case "INTEGER":
-			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS INT) as %s", dataField, jsonPath, field))
-		case "DECIMAL":
-			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS FLOAT) as %s", dataField, jsonPath, field))
-		case "BOOLEAN":
-			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS BIT) as %s", dataField, jsonPath, field))
-		case "DATETIME":
-			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s') AS DATETIME2) as %s", dataField, jsonPath, field))
-		case "DOCUMENT":
-			columns = append(columns, fmt.Sprintf("CAST(JSON_VALUE(%s, '%s.DOCUMENT_ID') AS NVARCHAR(255)) as %s /* References %s.DOCUMENT_ID */", dataField, jsonPath, field, *metadata.DocumentType))
-		case "RECORD":
-			create_view(db, docType, fmt.Sprintf("%s_%s", tableName, field), tableName, metadata.RecordType, dataField, fmt.Sprintf("%s.%s", root, field), flatten)
-		case "RECORD LIST":
-			// Don't support LIST in LIST
-			if dataField == "value" {
-				continue
-			}
-			create_view(db, docType, fmt.Sprintf("%s_%s", tableName, field), tableName, metadata.RecordType, "value", "$", fmt.Sprintf(" OUTER APPLY OPENJSON(data, '%s') AS value", jsonPath))
-		default:
-			log.Infof("Skipping %s:%s of unknown type %s", tableName, field, metadata.Type)
-		}
+	var fromClause string
+	if len(withClauses) > 0 {
+		fromClause = fmt.Sprintf("%s_LATEST%s OUTER APPLY OPENJSON(%s, '%s') WITH (%s) AS obj", TableName, flatten, dataField, root, strings.Join(withClauses, ", "))
+	} else {
+		// No scalar fields, do not OUTER APPLY OPENJSON; just select from the parent table
+		fromClause = fmt.Sprintf("%s_LATEST%s", TableName, flatten)
 	}
 
-	cmd := fmt.Sprintf("create or alter view [%s] as select %s from %s_LATEST%s where %s_LATEST.type='%s'",
-		tableName,
-		strings.Join(columns, ", "),
-		TableName,
-		flatten,
-		TableName,
-		docType)
+	selectFields := strings.Join(columns, ", ")
+	if len(withClauses) > 0 {
+		var objFields []string
+		for _, field := range getFieldNames(withClauses) {
+			objFields = append(objFields, fmt.Sprintf("[obj_%s] as %s", field, field))
+		}
+		selectFields += ", " + strings.Join(objFields, ", ")
+	}
 
+	cmd := fmt.Sprintf("create or alter view [%s] as select %s from %s where %s_LATEST.type='%s'", tableName, selectFields, fromClause, TableName, docType)
 	if flatten == "" {
 		cmd = cmd + " and chunk=0"
 	}
@@ -324,4 +335,19 @@ func create_view(db *sql.DB, docType string, tableName string, parentTable strin
 		log.Debug(cmd)
 	}
 
+	// Helper to get field names for SELECT
+}
+
+func getFieldNames(withClauses []string) []string {
+	var fields []string
+	for _, clause := range withClauses {
+		parts := strings.Fields(clause)
+		if len(parts) > 0 {
+			// Remove the 'obj_' prefix for the output column
+			field := parts[0]
+			field = strings.TrimPrefix(strings.Trim(field, "[]"), "obj_")
+			fields = append(fields, field)
+		}
+	}
+	return fields
 }
