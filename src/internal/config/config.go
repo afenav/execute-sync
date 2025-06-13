@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/goloop/env"
@@ -22,7 +23,7 @@ type Config struct {
 	Wait             int    `env:"WAIT" def:"600" flag:"wait" usage:"Wait time in seconds" default:"600"`
 	ChunkSize        int    `env:"CHUNK_SIZE" def:"10000" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
 	IncludeCalcs     bool   `env:"INCLUDE_CALCS" def:"false" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
-	Quiet            bool   `env:"QUIET" def:"false" flag:"quiet" usage:"Suppress non-error/warning log messages" alias:"q" default:"false"`
+	LogLevel         string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
 	Force            bool   `env:"FORCE" def:"false" flag:"force" usage:"Force operation" default:"false"`
 }
 
@@ -121,8 +122,19 @@ func ResolveConfig(cCtx *cli.Context) Config {
 		}
 	}
 
-	if cfg.Quiet {
+	// Adjustable log level
+	switch strings.ToLower(cfg.LogLevel) {
+	case "quiet":
 		log.SetLevel(log.WarnLevel)
+		log.SetReportCaller(false)
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+		log.SetReportCaller(true)
+	case "info":
+		fallthrough
+	default:
+		log.SetLevel(log.InfoLevel)
+		log.SetReportCaller(false)
 	}
 
 	// Special case for SQLITE.  If a DSN isn't provided, default to storing the DB in the state

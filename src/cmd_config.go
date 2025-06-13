@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/afenav/execute-sync/src/internal/config"
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -23,7 +24,7 @@ func ConfigCommand() *cli.Command {
 			fmt.Printf("Max Documents      : %d\n", cfg.MaxDocuments)
 			fmt.Printf("Chunk Size         : %d\n", cfg.ChunkSize)
 			fmt.Printf("State Directory    : %s\n", cfg.StateDir)
-			fmt.Printf("Quiet Logging?     : %t\n", cfg.Quiet)
+			fmt.Printf("Min Log Level      : %s\n", log.GetLevel().String())
 			fmt.Printf("Wait (for sync)    : %d seconds\n", cfg.Wait)
 			return nil
 		},
