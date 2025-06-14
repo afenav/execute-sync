@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/goloop/env"
@@ -120,21 +119,6 @@ func ResolveConfig(cCtx *cli.Context) Config {
 		case reflect.Bool:
 			val.SetBool(cCtx.Bool(flagName))
 		}
-	}
-
-	// Adjustable log level
-	switch strings.ToLower(cfg.LogLevel) {
-	case "quiet":
-		log.SetLevel(log.WarnLevel)
-		log.SetReportCaller(false)
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-		log.SetReportCaller(true)
-	case "info":
-		fallthrough
-	default:
-		log.SetLevel(log.InfoLevel)
-		log.SetReportCaller(false)
 	}
 
 	// Special case for SQLITE.  If a DSN isn't provided, default to storing the DB in the state

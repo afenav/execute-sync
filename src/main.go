@@ -62,23 +62,41 @@ func checkLatestVersion() {
 
 func main() {
 
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		ReportCaller:    true,
-		ReportTimestamp: true,
-		Level:           log.DebugLevel,
-	})
-	log.SetDefault(logger)
-
-	// Check if running latest version
-	checkLatestVersion()
-
 	app := &cli.App{
 		Usage: "Blast Execute data into a data warehouse",
 		Action: func(cCtx *cli.Context) error {
 			return cli.ShowAppHelp(cCtx)
 		},
 		Flags: config.GetFlags(),
+		Before: func(cCtx *cli.Context) error {
+			cfg := config.ResolveConfig(cCtx)
+			logLevel := log.InfoLevel
+			logCaller := false
+			switch strings.ToLower(cfg.LogLevel) {
+			case "quiet":
+				logLevel = log.WarnLevel
+				logCaller = false
+			case "debug":
+				logLevel = log.DebugLevel
+				logCaller = true
+			default:
+			}
 
+			logger := log.NewWithOptions(os.Stderr, log.Options{
+				ReportCaller:    logCaller,
+				ReportTimestamp: true,
+				Level:           logLevel,
+			})
+
+			log.SetDefault(logger)
+
+			// Check if running latest version
+			checkLatestVersion()
+			return nil
+		},
+		After: func(cCtx *cli.Context) error {
+			return nil
+		},
 		Commands: []*cli.Command{
 			ConfigCommand(),
 			SyncCommand(),
