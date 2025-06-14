@@ -1,5 +1,9 @@
 # Execute Sync
 
+[![Build Status](https://github.com/afenav/execute-sync/actions/workflows/release.yml/badge.svg)](https://github.com/afenav/execute-sync/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/afenav/execute-sync)](https://goreportcard.com/report/github.com/afenav/execute-sync)
+[![Go Reference](https://pkg.go.dev/badge/github.com/afenav/execute-sync.svg)](https://pkg.go.dev/github.com/afenav/execute-sync)
+
 **Execute Sync** is a helpful application designed to pull data from the Execute API and push it into a data warehouse (Snowflake, and SQLite) using Execute's `fetch` APIs. 
 
 [![asciicast](https://asciinema.org/a/lik5zrveLpuOg3kVjd71Igd2u.svg)](https://asciinema.org/a/lik5zrveLpuOg3kVjd71Igd2u)
