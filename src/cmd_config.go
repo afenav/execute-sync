@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/afenav/execute-sync/src/internal/config"
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -16,15 +18,20 @@ func ConfigCommand() *cli.Command {
 		Action: func(cCtx *cli.Context) error {
 			cfg := config.ResolveConfig(cCtx)
 			fmt.Printf("======== Configuration ========\n")
-			fmt.Printf("Warehouse Type     : %s\n", cfg.DatabaseType)
-			fmt.Printf("Execute URL        : %s\n", cfg.ExecuteURL)
-			fmt.Printf("API Key ID         : %s\n", cfg.ExecuteKeyId)
-			fmt.Printf("Include Calcs      : %t\n", cfg.IncludeCalcs)
-			fmt.Printf("Max Documents      : %d\n", cfg.MaxDocuments)
-			fmt.Printf("Chunk Size         : %d\n", cfg.ChunkSize)
-			fmt.Printf("State Directory    : %s\n", cfg.StateDir)
-			fmt.Printf("Quiet Logging?     : %t\n", cfg.Quiet)
-			fmt.Printf("Wait (for sync)    : %d seconds\n", cfg.Wait)
+			cfgVal := reflect.ValueOf(cfg)
+			cfgType := cfgVal.Type()
+			for i := 0; i < cfgVal.NumField(); i++ {
+				field := cfgType.Field(i)
+				name := field.Name
+				value := cfgVal.Field(i).Interface()
+				// Mask secrets
+				if name == "ExecuteKeySecret" || name == "DatabaseDSN" {
+					value = "***REDACTED***"
+				}
+				fmt.Printf("%-18s: %v\n", name, value)
+			}
+			// Show runtime log info
+			fmt.Printf("%-18s: %s\n", "Log Level (min)", log.GetLevel().String())
 			return nil
 		},
 	}

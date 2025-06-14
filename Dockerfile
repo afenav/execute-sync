@@ -14,4 +14,5 @@ COPY execute-sync .
 
 USER appuser
 
-CMD ["./execute-sync","sync"]
+ENTRYPOINT ["/app/execute-sync"]
+CMD ["sync"]

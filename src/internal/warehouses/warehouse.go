@@ -21,6 +21,7 @@ import (
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/afenav/execute-sync/src/internal/execute"
 	"github.com/afenav/execute-sync/src/internal/warehouses/snowflake"
+	"github.com/afenav/execute-sync/src/internal/warehouses/sqlserver"
 	"github.com/afenav/execute-sync/src/internal/warehouses/sqlite"
 )
 
@@ -48,6 +49,8 @@ func NewDatabase(cfg config.Config) (Database, error) {
 	switch cfg.DatabaseType {
 	case "SNOWFLAKE":
 		return snowflake.NewSnowflake(cfg.DatabaseDSN, cfg.ChunkSize)
+	case "SQLSERVER", "MSSQL":
+		return sqlserver.NewSQLServer(cfg.DatabaseDSN, cfg.ChunkSize)
 	case "GOSQLITE":
 		return sqlite.NewSQLite("sqlite", cfg.DatabaseDSN, cfg.ChunkSize)
 	case "SQLITE":

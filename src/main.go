@@ -115,9 +115,5 @@ func withDatabase(cCtx *cli.Context, action func(db warehouses.Database, cfg con
 		log.Errorf("Failed to initialize database: %v", err)
 		return err
 	}
-	if err != nil {
-		log.Errorf("Failed to bootstrap database: %v", err)
-		return err
-	}
 	return action(db, cfg)
 }
