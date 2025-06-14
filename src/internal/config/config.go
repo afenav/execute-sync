@@ -24,6 +24,7 @@ type Config struct {
 	IncludeCalcs     bool   `env:"INCLUDE_CALCS" def:"false" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
 	LogLevel         string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
 	Force            bool   `env:"FORCE" def:"false" flag:"force" usage:"Force operation" default:"false"`
+	LogFile          string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
 }
 
 // GetFlags returns the CLI flags for the application, centralized here for consistency

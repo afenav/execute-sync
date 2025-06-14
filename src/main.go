@@ -82,19 +82,39 @@ func main() {
 			default:
 			}
 
-			logger := log.NewWithOptions(os.Stderr, log.Options{
-				ReportCaller:    logCaller,
-				ReportTimestamp: true,
-				Level:           logLevel,
-			})
+			var logger *log.Logger
+			var logFile *os.File
+			if cfg.LogFile != "" {
+				var err error
+				logFile, err = os.OpenFile(cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err != nil {
+					return fmt.Errorf("Failed to open log file %s: %v", cfg.LogFile, err)
+				}
+				logger = log.NewWithOptions(logFile, log.Options{
+					ReportCaller:    logCaller,
+					ReportTimestamp: true,
+					Level:           logLevel,
+				})
+				// Store logFile in context for After hook
+				cCtx.App.Metadata = map[string]interface{}{ "logFile": logFile }
+			} else {
+				logger = log.NewWithOptions(os.Stderr, log.Options{
+					ReportCaller:    logCaller,
+					ReportTimestamp: true,
+					Level:           logLevel,
+				})
+			}
 
 			log.SetDefault(logger)
-
-			// Check if running latest version
 			checkLatestVersion()
 			return nil
 		},
 		After: func(cCtx *cli.Context) error {
+			if lf, ok := cCtx.App.Metadata["logFile"]; ok {
+				if logFile, ok := lf.(*os.File); ok {
+					logFile.Close()
+				}
+			}
 			return nil
 		},
 		Commands: []*cli.Command{
