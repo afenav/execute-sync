@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -88,15 +89,22 @@ func main() {
 				var err error
 				logFile, err = os.OpenFile(cfg.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 				if err != nil {
-					return fmt.Errorf("Failed to open log file %s: %v", cfg.LogFile, err)
+					fmt.Fprintf(os.Stderr, "Failed to open log file %s: %v\n", cfg.LogFile, err)
+					logger = log.NewWithOptions(os.Stderr, log.Options{
+						ReportCaller:    logCaller,
+						ReportTimestamp: true,
+						Level:           logLevel,
+					})
+				} else {
+					multi := io.MultiWriter(os.Stderr, logFile)
+					logger = log.NewWithOptions(multi, log.Options{
+						ReportCaller:    logCaller,
+						ReportTimestamp: true,
+						Level:           logLevel,
+					})
+					// Store logFile in context for After hook
+					cCtx.App.Metadata = map[string]interface{}{ "logFile": logFile }
 				}
-				logger = log.NewWithOptions(logFile, log.Options{
-					ReportCaller:    logCaller,
-					ReportTimestamp: true,
-					Level:           logLevel,
-				})
-				// Store logFile in context for After hook
-				cCtx.App.Metadata = map[string]interface{}{ "logFile": logFile }
 			} else {
 				logger = log.NewWithOptions(os.Stderr, log.Options{
 					ReportCaller:    logCaller,
