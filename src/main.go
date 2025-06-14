@@ -103,7 +103,7 @@ func main() {
 						Level:           logLevel,
 					})
 					// Store logFile in context for After hook
-					cCtx.App.Metadata = map[string]interface{}{ "logFile": logFile }
+					cCtx.App.Metadata = map[string]interface{}{"logFile": logFile}
 				}
 			} else {
 				logger = log.NewWithOptions(os.Stderr, log.Options{

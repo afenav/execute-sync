@@ -21,8 +21,8 @@ import (
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/afenav/execute-sync/src/internal/execute"
 	"github.com/afenav/execute-sync/src/internal/warehouses/snowflake"
-	"github.com/afenav/execute-sync/src/internal/warehouses/sqlserver"
 	"github.com/afenav/execute-sync/src/internal/warehouses/sqlite"
+	"github.com/afenav/execute-sync/src/internal/warehouses/sqlserver"
 )
 
 type Database interface {
