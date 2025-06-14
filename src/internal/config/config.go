@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/goloop/env"
@@ -25,6 +24,7 @@ type Config struct {
 	IncludeCalcs     bool   `env:"INCLUDE_CALCS" def:"false" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
 	LogLevel         string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
 	Force            bool   `env:"FORCE" def:"false" flag:"force" usage:"Force operation" default:"false"`
+	LogFile          string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
 }
 
 // GetFlags returns the CLI flags for the application, centralized here for consistency
@@ -120,21 +120,6 @@ func ResolveConfig(cCtx *cli.Context) Config {
 		case reflect.Bool:
 			val.SetBool(cCtx.Bool(flagName))
 		}
-	}
-
-	// Adjustable log level
-	switch strings.ToLower(cfg.LogLevel) {
-	case "quiet":
-		log.SetLevel(log.WarnLevel)
-		log.SetReportCaller(false)
-	case "debug":
-		log.SetLevel(log.DebugLevel)
-		log.SetReportCaller(true)
-	case "info":
-		fallthrough
-	default:
-		log.SetLevel(log.InfoLevel)
-		log.SetReportCaller(false)
 	}
 
 	// Special case for SQLITE.  If a DSN isn't provided, default to storing the DB in the state
