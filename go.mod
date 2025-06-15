@@ -6,7 +6,7 @@ require (
 	github.com/goloop/env v1.2.1
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/snowflakedb/gosnowflake v1.14.1
-	github.com/urfave/cli/v2 v2.27.6
+	github.com/urfave/cli/v2 v2.27.7
 	modernc.org/sqlite v1.37.0 // pinned
 )
 
