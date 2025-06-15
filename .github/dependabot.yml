@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"                # Location of go.mod
+    schedule:
+      interval: "weekly"          # Options: daily, weekly, monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    reviewers:
+      - "jclement"    # Optional: Add reviewers
+    assignees:
+      - "jclement"    # Optional: Add assignees
+    labels:
+      - "dependencies"
