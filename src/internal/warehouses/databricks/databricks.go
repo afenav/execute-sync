@@ -39,15 +39,15 @@ type Databricks struct {
 	chunkSize int
 }
 
-// fullTableName returns the fully-qualified table name using catalog and schema if provided.
-func (d *Databricks) fullTableName() string {
+// fullObjectName returns the fully-qualified name for any table/view given its simple identifier.
+func (d *Databricks) fullObjectName(obj string) string {
 	if d.cfg.Catalog != "" && d.cfg.Schema != "" {
-		return fmt.Sprintf("%s.%s.%s", d.cfg.Catalog, d.cfg.Schema, TableName)
+		return fmt.Sprintf("%s.%s.%s", d.cfg.Catalog, d.cfg.Schema, obj)
 	}
 	if d.cfg.Schema != "" {
-		return fmt.Sprintf("%s.%s", d.cfg.Schema, TableName)
+		return fmt.Sprintf("%s.%s", d.cfg.Schema, obj)
 	}
-	return TableName
+	return obj
 }
 
 // parseDatabricksDSN parses a Databricks DSN string for both SQL and REST usage.
@@ -126,7 +126,7 @@ func NewDatabricks(dsn string, chunkSize int) (*Databricks, error) {
 }
 
 func (d *Databricks) bootstrap() error {
-	tableName := d.fullTableName()
+	tableName := d.fullObjectName(TableName)
 	log.Debug("Bootstraping table", "table", tableName)
 	createTableSQL := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 		batch_date TIMESTAMP,
@@ -148,6 +148,7 @@ func (d *Databricks) bootstrap() error {
 
 // Upload implements the Database interface. It serializes records to CSV (like Snowflake), uploads to DBFS, and loads into the Databricks table.
 func (d *Databricks) Upload(batch_date string, nextRecord func() (map[string]interface{}, error)) (int, error) {
+	tableName := d.fullObjectName(TableName)
 	// Ensure table exists
 	if err := d.bootstrap(); err != nil {
 		return 0, err
@@ -252,7 +253,6 @@ func (d *Databricks) Upload(batch_date string, nextRecord func() (map[string]int
 		if err := d.uploadToDBFS(tmpFile.Name(), dbfsPath); err != nil {
 			return 0, fmt.Errorf("upload to DBFS failed: %w", err)
 		}
-		tableName := d.fullTableName()
 		log.Debug("Uploading batch to Databricks: ", tableName)
 		query := fmt.Sprintf(`COPY INTO %s (batch_date, type, id, version, chunk, author, date, deleted, data)
 		FROM 'dbfs:%s'
@@ -269,12 +269,7 @@ func (d *Databricks) Prune() error {
 	if err := d.bootstrap(); err != nil {
 		return err
 	}
-	tableName := TableName
-	if d.cfg.Catalog != "" && d.cfg.Schema != "" {
-		tableName = fmt.Sprintf("%s.%s.%s", d.cfg.Catalog, d.cfg.Schema, tableName)
-	} else if d.cfg.Schema != "" {
-		tableName = fmt.Sprintf("%s.%s", d.cfg.Schema, tableName)
-	}
+	tableName := d.fullObjectName(TableName)
 	pruneSQL := fmt.Sprintf(`DELETE FROM %s t
 WHERE EXISTS (
   SELECT 1 FROM (
@@ -292,10 +287,130 @@ WHERE EXISTS (
 	return err
 }
 
-// CreateViews is a stub implementation to satisfy the Database interface.
-func (d *Databricks) CreateViews(root execute.RootSchema) error {
-	// TODO: implement view creation logic for Databricks
+func (d *Databricks) CreateViews(data execute.RootSchema) error {
+	if err := d.bootstrap(); err != nil {
+		return fmt.Errorf("error bootstrapping database: %v", err)
+	}
+
+	// Build fully qualified base table and view names
+	baseTable := d.fullObjectName(TableName)
+	viewAllVersions := d.fullObjectName(TableName + "_LATEST_ALL_VERSIONS")
+	viewLatest := d.fullObjectName(TableName + "_LATEST")
+
+	ctx := context.Background()
+
+	// _LATEST_ALL_VERSIONS view – latest batch for every (type,id,version)
+	log.Debug("Creating view", "view", viewAllVersions)
+	queryAll := fmt.Sprintf(`CREATE OR REPLACE VIEW %s AS
+SELECT ed.*
+FROM %s ed
+INNER JOIN (
+  SELECT type, id, version, MAX(batch_date) AS batch_date
+  FROM %s
+  GROUP BY type, id, version
+) latest
+ON ed.type = latest.type
+ AND ed.id = latest.id
+ AND ed.version = latest.version
+ AND ed.batch_date = latest.batch_date`, viewAllVersions, baseTable, baseTable)
+	if _, err := d.client.ExecContext(ctx, queryAll); err != nil {
+		return fmt.Errorf("error creating %s view: %w", viewAllVersions, err)
+	}
+
+	// _LATEST view – latest version per (type,id)
+	log.Debug("Creating view", "view", viewLatest)
+	queryLatest := fmt.Sprintf(`CREATE OR REPLACE VIEW %s AS
+SELECT ed.*
+FROM %s ed
+INNER JOIN (
+  SELECT type, id, MAX(version) AS version
+  FROM %s
+  GROUP BY type, id
+) latest
+ON ed.type = latest.type
+ AND ed.id = latest.id
+ AND ed.version = latest.version`, viewLatest, viewAllVersions, baseTable)
+	if _, err := d.client.ExecContext(ctx, queryLatest); err != nil {
+		return fmt.Errorf("error creating %s view: %w", viewLatest, err)
+	}
+	for key, value := range data {
+		if key != "AFE" {
+			continue
+		}
+		log.Infof("Creating Helper Views for `%s`", key)
+		d.create_view(key, key, "", value, "data", "$", "")
+	}
+
 	return nil
+}
+
+func (d *Databricks) create_view(docType string, viewName string, parentTable string, record execute.DocumentSchema, root string, path string, flatten string) {
+
+	var columns []string
+
+	columns = append(columns, "id as DOCUMENT_ID")
+
+	if root == "value" && path != "$" {
+		// special case to pull out the listitem_id for child custom records on list
+		columns = append(columns, "CAST(get_json_object(value, '$.LISTITEM_ID') AS string) AS LISTITEM_ID")
+	}
+
+	if parentTable == "" {
+		columns = append(columns, "deleted as _DELETED")
+		columns = append(columns, "author as _AUTHOR")
+		columns = append(columns, "version as _VERSION")
+		columns = append(columns, "date as _DATE")
+	}
+
+	for field, metadata := range record {
+		if field == "DOCUMENT_ID" {
+			continue
+		}
+		switch metadata.Type {
+		case "TEXT", "GUID", "UWI":
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS string) AS %s", root, path, field, field))
+		case "INTEGER":
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS int) AS %s", root, path, field, field))
+		case "DECIMAL":
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS float) AS %s", root, path, field, field))
+		case "BOOLEAN":
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS int) AS %s", root, path, field, field))
+		case "DATETIME":
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS date) AS %s", root, path, field, field))
+		case "DOCUMENT":
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s.DOCUMENT_ID') AS string) AS %s /* References %s.DOCUMENT_ID */", root, path, field, field, *metadata.DocumentType))
+		case "RECORD":
+			d.create_view(docType, fmt.Sprintf("%s_%s", viewName, field), viewName, metadata.RecordType, root, fmt.Sprintf("%s.%s", path, field), flatten)
+		case "RECORD LIST":
+			// Don't support LIST in LIST
+			if root != "data" {
+				continue
+			}
+			jsonPath := fmt.Sprintf("%s.%s", path, field)
+			explodeClause := fmt.Sprintf(" lateral view explode_outer(from_json(get_json_object(%s, '%s'), 'array<string>')) AS value", root, jsonPath)
+			d.create_view(docType, fmt.Sprintf("%s_%s", viewName, field), viewName, metadata.RecordType, "value", "$", explodeClause)
+		default:
+			log.Infof("Skipping %s:%s of unknown type %s", viewName, field, metadata.Type)
+		}
+	}
+
+	cmd := fmt.Sprintf("create or replace view %s as select %s from %s_LATEST%s where type='%s'",
+		d.fullObjectName(viewName),
+		strings.Join(columns, ", "),
+		d.fullObjectName(TableName),
+		flatten,
+		docType)
+
+	if flatten == "" {
+		cmd = cmd + " and chunk=0"
+	}
+
+	log.Debug("Creating view", "view", viewName)
+	_, err := d.client.ExecContext(context.Background(), cmd)
+	if err != nil {
+		log.Errorf("Error creating %s: %v", viewName, err)
+		log.Debug(cmd)
+	}
 }
 
 // uploadToDBFS uploads a local file to DBFS via Databricks REST API.

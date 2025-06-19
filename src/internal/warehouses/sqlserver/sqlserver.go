@@ -247,7 +247,7 @@ func (s *SQLServer) CreateViews(data execute.RootSchema) error {
 	}
 
 	for key, value := range data {
-		log.Infof("Creating Helper View `%s`", key)
+		log.Infof("Creating Helper Views for `%s`", key)
 		create_view(db, key, key, "", value, "data", "$", "")
 	}
 

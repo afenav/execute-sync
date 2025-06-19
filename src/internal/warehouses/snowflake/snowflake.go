@@ -290,7 +290,7 @@ func (s *Snowflake) CreateViews(data execute.RootSchema) error {
 	}
 
 	for key, value := range data {
-		log.Infof("Creating Helper View `%s`", key)
+		log.Infof("Creating Helper Views for `%s`", key)
 		create_view(db, key, key, "", value, "data", "")
 	}
 
@@ -372,7 +372,7 @@ func create_view(db *sql.DB, docType string, tableName string, parentTable strin
 
 	_, err := db.Exec(cmd)
 	if err != nil {
-		log.Errorf("Error creating %s: %w", tableName, err)
+		log.Errorf("Error creating %s: %v", tableName, err)
 		log.Debug(cmd)
 	}
 }
