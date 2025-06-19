@@ -334,9 +334,6 @@ ON ed.type = latest.type
 		return fmt.Errorf("error creating %s view: %w", viewLatest, err)
 	}
 	for key, value := range data {
-		if key != "AFE" {
-			continue
-		}
 		log.Infof("Creating Helper Views for `%s`", key)
 		d.create_view(key, key, "", value, "data", "$", "")
 	}
