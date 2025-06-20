@@ -246,6 +246,10 @@ func (d *Databricks) Upload(batch_date string, nextRecord func() (map[string]int
 		if _, err := d.client.ExecContext(context.Background(), query); err != nil {
 			return 0, fmt.Errorf("COPY INTO failed: %w", err)
 		}
+		// Clean up DBFS file after successful ingestion
+		if err := d.deleteFromDBFS(dbfsPath); err != nil {
+			log.Warn("Failed to cleanup DBFS file", "path", dbfsPath, "error", err)
+		}
 	}
 	return document_count, nil
 }
@@ -468,6 +472,28 @@ func (d *Databricks) uploadToDBFS(localPath, dbfsPath string) error {
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("dbfs put failed: %s", string(b))
+	}
+	return nil
+}
+
+func (d *Databricks) deleteFromDBFS(dbfsPath string) error {
+	log.Debug("Deleting from DBFS", "path", dbfsPath)
+	url := fmt.Sprintf("https://%s/api/2.0/dbfs/delete", d.cfg.Host)
+	req, err := http.NewRequest("POST", url, strings.NewReader(fmt.Sprintf(`{"path": "%s"}`, dbfsPath)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+d.cfg.Token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("dbfs delete failed: %s", string(b))
 	}
 	return nil
 }
