@@ -20,6 +20,7 @@ import (
 
 	"github.com/afenav/execute-sync/src/internal/config"
 	"github.com/afenav/execute-sync/src/internal/execute"
+	"github.com/afenav/execute-sync/src/internal/warehouses/databricks"
 	"github.com/afenav/execute-sync/src/internal/warehouses/snowflake"
 	"github.com/afenav/execute-sync/src/internal/warehouses/sqlite"
 	"github.com/afenav/execute-sync/src/internal/warehouses/sqlserver"
@@ -55,6 +56,8 @@ func NewDatabase(cfg config.Config) (Database, error) {
 		return sqlite.NewSQLite("sqlite", cfg.DatabaseDSN, cfg.ChunkSize)
 	case "SQLITE":
 		return sqlite.NewSQLite("sqlite3", cfg.DatabaseDSN, cfg.ChunkSize)
+	case "DATABRICKS":
+        return databricks.NewDatabricks(cfg.DatabaseDSN, cfg.ChunkSize)
 	default:
 		return nil, errors.New("unsupported database type")
 	}
