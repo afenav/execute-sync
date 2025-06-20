@@ -359,23 +359,31 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 		columns = append(columns, "date as _DATE")
 	}
 
+	var jsonParseClause string
+	if path == "$" {
+		jsonParseClause = fmt.Sprintf("from_json(%s, 'map<string, string>') as parsed_data", root)
+	} else {
+		jsonParseClause = fmt.Sprintf("from_json(get_json_object(%s, '%s'), 'map<string, string>') as parsed_data", root, path)
+	}
+
 	for field, metadata := range record {
 		if field == "DOCUMENT_ID" {
 			continue
 		}
 		switch metadata.Type {
 		case "TEXT", "GUID", "UWI":
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS string) AS %s", root, path, field, field))
+			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS string) AS %s", field, field))
 		case "INTEGER":
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS int) AS %s", root, path, field, field))
+			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS int) AS %s", field, field))
 		case "DECIMAL":
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS float) AS %s", root, path, field, field))
+			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS float) AS %s", field, field))
 		case "BOOLEAN":
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS int) AS %s", root, path, field, field))
+			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS boolean) AS %s", field, field))
 		case "DATETIME":
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s') AS date) AS %s", root, path, field, field))
+			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS date) AS %s", field, field))
 		case "DOCUMENT":
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s, '%s.%s.DOCUMENT_ID') AS string) AS %s /* References %s.DOCUMENT_ID */", root, path, field, field, *metadata.DocumentType))
+			// For document references, we need to parse the nested object
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(parsed_data['%s'], '$.DOCUMENT_ID') AS string) AS %s /* References %s.DOCUMENT_ID */", field, field, *metadata.DocumentType))
 		case "RECORD":
 			d.create_view(docType, fmt.Sprintf("%s_%s", viewName, field), viewName, metadata.RecordType, root, fmt.Sprintf("%s.%s", path, field), flatten)
 		case "RECORD LIST":
@@ -391,16 +399,27 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 		}
 	}
 
-	cmd := fmt.Sprintf("create or replace view %s as select %s from %s_LATEST%s where type='%s'",
+	extraClause := ""
+	if flatten == "" {
+		extraClause = " and chunk=0"
+	}
+
+	// Build the final SQL command with the JSON parsing
+	cmd := fmt.Sprintf(`create or replace view %s as 
+	select %s 
+	from (
+		select id, deleted, author, version, date, %s, %s
+		from %s_LATEST%s 
+		where type='%s'%s
+	)`,
 		d.fullObjectName(viewName),
 		strings.Join(columns, ", "),
+		root,
+		jsonParseClause,
 		d.fullObjectName(TableName),
 		flatten,
-		docType)
-
-	if flatten == "" {
-		cmd = cmd + " and chunk=0"
-	}
+		docType,
+		extraClause)
 
 	log.Debug("Creating view", "view", viewName)
 	_, err := d.client.ExecContext(context.Background(), cmd)
