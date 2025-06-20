@@ -50,50 +50,35 @@ func (d *Databricks) fullObjectName(obj string) string {
 	return obj
 }
 
-// parseDatabricksDSN parses a Databricks DSN string for both SQL and REST usage.
+// parseDatabricksDSN parses a Databricks DSN string in databricks:// URL format.
 func parseDatabricksDSN(dsn string) (Config, error) {
 	cfg := Config{DSN: dsn}
-	if len(dsn) > 12 && strings.HasPrefix(dsn, "databricks://") {
-		u, err := url.Parse(dsn)
-		if err != nil {
-			return cfg, err
-		}
-		cfg.Host = u.Host
-		// Parse token from userinfo
-		if u.User != nil {
-			if pw, ok := u.User.Password(); ok {
-				cfg.Token = pw
-			} else {
-				cfg.Token = u.User.Username()
-			}
-		}
-		q := u.Query()
-		cfg.HttpPath = q.Get("http_path")
-		cfg.Catalog = q.Get("catalog")
-		cfg.Schema = q.Get("schema")
-		return cfg, nil
+
+	if !strings.HasPrefix(dsn, "databricks://") {
+		return cfg, fmt.Errorf("invalid Databricks DSN: must start with 'databricks://'")
 	}
-	// Else, parse key-value format
-	for _, part := range strings.Split(dsn, ";") {
-		kv := strings.SplitN(part, "=", 2)
-		if len(kv) != 2 {
-			continue
-		}
-		key := strings.ToLower(strings.TrimSpace(kv[0]))
-		val := strings.TrimSpace(kv[1])
-		switch key {
-		case "host":
-			cfg.Host = val
-		case "http_path":
-			cfg.HttpPath = val
-		case "access_token", "token":
-			cfg.Token = val
-		case "catalog":
-			cfg.Catalog = val
-		case "schema":
-			cfg.Schema = val
+
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return cfg, fmt.Errorf("invalid Databricks URL: %w", err)
+	}
+
+	cfg.Host = u.Host
+
+	// Parse token from userinfo
+	if u.User != nil {
+		if pw, ok := u.User.Password(); ok {
+			cfg.Token = pw
+		} else {
+			cfg.Token = u.User.Username()
 		}
 	}
+
+	q := u.Query()
+	cfg.HttpPath = q.Get("http_path")
+	cfg.Catalog = q.Get("catalog")
+	cfg.Schema = q.Get("schema")
+
 	return cfg, nil
 }
 
@@ -164,7 +149,7 @@ func (d *Databricks) Upload(batch_date string, nextRecord func() (map[string]int
 		os.Remove(tmpFile.Name())
 	}()
 
-	log.Debug("Writing to temporary file: ", tmpFile.Name())
+	log.Debug("Writing to temporary file", "filename", tmpFile.Name())
 	csvWriter := csv.NewWriter(tmpFile)
 	csvWriter.Comma = '\t' // use TAB delimiter to avoid comma conflicts
 	// No header row; COPY INTO will provide column list
@@ -253,7 +238,7 @@ func (d *Databricks) Upload(batch_date string, nextRecord func() (map[string]int
 		if err := d.uploadToDBFS(tmpFile.Name(), dbfsPath); err != nil {
 			return 0, fmt.Errorf("upload to DBFS failed: %w", err)
 		}
-		log.Debug("Uploading batch to Databricks: ", tableName)
+		log.Debug("Uploading batch to Databricks", "table", tableName, "dbfsPath", dbfsPath)
 		query := fmt.Sprintf(`COPY INTO %s (batch_date, type, id, version, chunk, author, date, deleted, data)
 		FROM 'dbfs:%s'
 		FILEFORMAT = CSV
@@ -320,7 +305,7 @@ ON ed.type = latest.type
 	// _LATEST view – latest version per (type,id)
 	log.Debug("Creating view", "view", viewLatest)
 	queryLatest := fmt.Sprintf(`CREATE OR REPLACE VIEW %s AS
-SELECT ed.*
+SELECT ed.*, from_json(ed.data, 'map<string, string>') as parsed_json
 FROM %s ed
 INNER JOIN (
   SELECT type, id, MAX(version) AS version
@@ -352,18 +337,21 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 		columns = append(columns, "CAST(get_json_object(value, '$.LISTITEM_ID') AS string) AS LISTITEM_ID")
 	}
 
+	// Add special meta-data fields on top-level document table
+	var jsonParseClause string
+	var parsedDataRef string
 	if parentTable == "" {
 		columns = append(columns, "deleted as _DELETED")
 		columns = append(columns, "author as _AUTHOR")
 		columns = append(columns, "version as _VERSION")
 		columns = append(columns, "date as _DATE")
-	}
 
-	var jsonParseClause string
-	if path == "$" {
-		jsonParseClause = fmt.Sprintf("from_json(%s, 'map<string, string>') as parsed_data", root)
+		// Use pre-parsed JSON from EXECUTE_DOCUMENTS_LATEST for top-level fields
+		jsonParseClause = "parsed_json"
+		parsedDataRef = "parsed_json"
 	} else {
 		jsonParseClause = fmt.Sprintf("from_json(get_json_object(%s, '%s'), 'map<string, string>') as parsed_data", root, path)
+		parsedDataRef = "parsed_data"
 	}
 
 	for field, metadata := range record {
@@ -372,18 +360,18 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 		}
 		switch metadata.Type {
 		case "TEXT", "GUID", "UWI":
-			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS string) AS %s", field, field))
+			columns = append(columns, fmt.Sprintf("CAST(%s['%s'] AS string) AS %s", parsedDataRef, field, field))
 		case "INTEGER":
-			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS int) AS %s", field, field))
+			columns = append(columns, fmt.Sprintf("CAST(%s['%s'] AS int) AS %s", parsedDataRef, field, field))
 		case "DECIMAL":
-			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS float) AS %s", field, field))
+			columns = append(columns, fmt.Sprintf("CAST(%s['%s'] AS float) AS %s", parsedDataRef, field, field))
 		case "BOOLEAN":
-			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS boolean) AS %s", field, field))
+			columns = append(columns, fmt.Sprintf("CAST(%s['%s'] AS boolean) AS %s", parsedDataRef, field, field))
 		case "DATETIME":
-			columns = append(columns, fmt.Sprintf("CAST(parsed_data['%s'] AS date) AS %s", field, field))
+			columns = append(columns, fmt.Sprintf("CAST(%s['%s'] AS date) AS %s", parsedDataRef, field, field))
 		case "DOCUMENT":
 			// For document references, we need to parse the nested object
-			columns = append(columns, fmt.Sprintf("CAST(get_json_object(parsed_data['%s'], '$.DOCUMENT_ID') AS string) AS %s /* References %s.DOCUMENT_ID */", field, field, *metadata.DocumentType))
+			columns = append(columns, fmt.Sprintf("CAST(get_json_object(%s['%s'], '$.DOCUMENT_ID') AS string) AS %s /* References %s.DOCUMENT_ID */", parsedDataRef, field, field, *metadata.DocumentType))
 		case "RECORD":
 			d.create_view(docType, fmt.Sprintf("%s_%s", viewName, field), viewName, metadata.RecordType, root, fmt.Sprintf("%s.%s", path, field), flatten)
 		case "RECORD LIST":
@@ -391,8 +379,8 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 			if root != "data" {
 				continue
 			}
-			jsonPath := fmt.Sprintf("%s.%s", path, field)
-			explodeClause := fmt.Sprintf(" lateral view explode(from_json(get_json_object(%s, '%s'), 'array<string>')) AS value", root, jsonPath)
+			// Use parsed_json directly since it's available at table level
+			explodeClause := fmt.Sprintf(" lateral view explode(from_json(parsed_json['%s'], 'array<string>')) AS value", field)
 			d.create_view(docType, fmt.Sprintf("%s_%s", viewName, field), viewName, metadata.RecordType, "value", "$", explodeClause)
 		default:
 			log.Infof("Skipping %s:%s of unknown type %s", viewName, field, metadata.Type)
@@ -404,22 +392,38 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 		extraClause = " and chunk=0"
 	}
 
-	// Build the final SQL command with the JSON parsing
-	cmd := fmt.Sprintf(`create or replace view %s as 
+	// Build the final SQL command
+	var cmd string
+	if parentTable == "" {
+		// For root level, parsed_json is already available from EXECUTE_DOCUMENTS_LATEST
+		cmd = fmt.Sprintf(`create or replace view %s as 
+	select %s 
+	from %s_LATEST%s 
+	where type='%s'%s`,
+			d.fullObjectName(viewName),
+			strings.Join(columns, ", "),
+			d.fullObjectName(TableName),
+			flatten,
+			docType,
+			extraClause)
+	} else {
+		// For nested paths, we need to parse JSON in subquery
+		cmd = fmt.Sprintf(`create or replace view %s as 
 	select %s 
 	from (
 		select id, deleted, author, version, date, %s, %s
 		from %s_LATEST%s 
 		where type='%s'%s
 	)`,
-		d.fullObjectName(viewName),
-		strings.Join(columns, ", "),
-		root,
-		jsonParseClause,
-		d.fullObjectName(TableName),
-		flatten,
-		docType,
-		extraClause)
+			d.fullObjectName(viewName),
+			strings.Join(columns, ", "),
+			root,
+			jsonParseClause,
+			d.fullObjectName(TableName),
+			flatten,
+			docType,
+			extraClause)
+	}
 
 	log.Debug("Creating view", "view", viewName)
 	_, err := d.client.ExecContext(context.Background(), cmd)
@@ -431,7 +435,7 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 
 // uploadToDBFS uploads a local file to DBFS via Databricks REST API.
 func (d *Databricks) uploadToDBFS(localPath, dbfsPath string) error {
-	log.Debug("Uploading to DBFS: ", dbfsPath)
+	log.Debug("Uploading to DBFS", "path", dbfsPath)
 	file, err := os.Open(localPath)
 	if err != nil {
 		return err
