@@ -384,7 +384,7 @@ func (d *Databricks) create_view(docType string, viewName string, parentTable st
 				continue
 			}
 			jsonPath := fmt.Sprintf("%s.%s", path, field)
-			explodeClause := fmt.Sprintf(" lateral view explode_outer(from_json(get_json_object(%s, '%s'), 'array<string>')) AS value", root, jsonPath)
+			explodeClause := fmt.Sprintf(" lateral view explode(from_json(get_json_object(%s, '%s'), 'array<string>')) AS value", root, jsonPath)
 			d.create_view(docType, fmt.Sprintf("%s_%s", viewName, field), viewName, metadata.RecordType, "value", "$", explodeClause)
 		default:
 			log.Infof("Skipping %s:%s of unknown type %s", viewName, field, metadata.Type)
