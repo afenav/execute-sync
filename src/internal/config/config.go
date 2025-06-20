@@ -96,6 +96,10 @@ func ResolveConfig(cCtx *cli.Context) Config {
 		if err := env.Load(".env"); err != nil {
 			log.Fatal(err)
 		}
+	} else if fileExists("config.env") {
+		if err := env.Load("config.env"); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if err := env.Unmarshal("EXECUTESYNC_", &cfg); err != nil {
