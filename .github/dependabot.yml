@@ -8,9 +8,7 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    reviewers:
-      - "jclement"    # Optional: Add reviewers
     assignees:
-      - "jclement"    # Optional: Add assignees
+      - "jclement"    
     labels:
       - "dependencies"
