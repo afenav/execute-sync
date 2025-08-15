@@ -132,6 +132,8 @@ func fetchAndProcessDocuments(cfg config.Config, db warehouses.Database) (int, e
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			log.Debugf("HTTP error response - Status: %d, Body: %s, Headers: %v", resp.StatusCode, string(body), resp.Header)
 			return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
 

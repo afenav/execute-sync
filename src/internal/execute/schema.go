@@ -70,6 +70,8 @@ func FetchSchema(cfg config.Config) (RootSchema, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Debugf("Execute API schema error response - Status: %d, Body: %s, Headers: %v", resp.StatusCode, string(body), resp.Header)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 

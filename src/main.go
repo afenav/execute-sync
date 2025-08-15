@@ -39,7 +39,8 @@ func checkLatestVersion() {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Debug("Failed to check for latest version: GitHub API returned status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		log.Debugf("Failed to check for latest version: GitHub API returned status %d, Body: %s", resp.StatusCode, string(body))
 		return
 	}
 

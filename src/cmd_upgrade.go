@@ -164,6 +164,8 @@ func getLatestRelease() (*GithubRelease, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Debugf("GitHub API error response - Status: %d, Body: %s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
@@ -203,6 +205,8 @@ func downloadFile(url, filepath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Debugf("Download error response - Status: %d, Body: %s", resp.StatusCode, string(body))
 		return fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
