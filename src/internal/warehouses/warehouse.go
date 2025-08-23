@@ -57,7 +57,7 @@ func NewDatabase(cfg config.Config) (Database, error) {
 	case "SQLITE":
 		return sqlite.NewSQLite("sqlite3", cfg.DatabaseDSN, cfg.ChunkSize)
 	case "DATABRICKS":
-        return databricks.NewDatabricks(cfg.DatabaseDSN, cfg.ChunkSize)
+		return databricks.NewDatabricks(cfg.DatabaseDSN, cfg.ChunkSize)
 	default:
 		return nil, errors.New("unsupported database type")
 	}
