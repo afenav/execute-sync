@@ -371,6 +371,7 @@ func create_view(db *sql.DB, docType string, tableName string, parentTable strin
 	}
 
 	_, err := db.Exec(cmd)
+	log.Debugf("Creating view `%s` as %s", tableName, cmd)
 	if err != nil {
 		log.Errorf("Error creating %s: %v", tableName, err)
 		log.Debug(cmd)
