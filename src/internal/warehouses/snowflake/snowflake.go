@@ -343,7 +343,7 @@ func create_view(db *sql.DB, docType string, tableName string, parentTable strin
 		case "BOOLEAN":
 			columns = append(columns, fmt.Sprintf("%s:%s::int as %s", root, field, field))
 		case "DATETIME":
-			columns = append(columns, fmt.Sprintf("%s:%s::date as %s", root, field, field))
+			columns = append(columns, fmt.Sprintf("%s:%s::timestamp_tz as %s", root, field, field))
 		case "DOCUMENT":
 			columns = append(columns, fmt.Sprintf("%s:%s:DOCUMENT_ID::string as %s /* References %s.DOCUMENT_ID */", root, field, field, *metadata.DocumentType))
 		case "RECORD":
