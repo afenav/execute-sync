@@ -19,14 +19,52 @@ description="Run a test build of everything (requires Docker)"
 run = "goreleaser release --snapshot --clean"
 
 [tasks.release]
-description="Tag/Publish a release (based on VERSION environment variable)"
+description="Tag/Publish a release (auto-increments minor version or uses VERSION env var)"
 run = '''
+# If VERSION is not set, fetch latest tag and increment minor version
 if [ -z "${VERSION}" ]; then
-  echo "Error: VERSION variable is not set."
-  echo "Usage: VERSION=<version: i.e. 0.1.10> mise run release"
+  echo "Fetching latest version from github.com/afenav/execute-sync..."
+  
+  # Fetch latest tag from GitHub
+  LATEST_TAG=$(git ls-remote --tags https://github.com/afenav/execute-sync | grep -v '{}' | awk '{print $2}' | sed 's|refs/tags/||' | grep '^v[0-9]' | sort -V | tail -n1)
+  
+  if [ -z "${LATEST_TAG}" ]; then
+    echo "No existing tags found. Starting with v0.1.0"
+    VERSION="0.1.0"
+  else
+    # Remove 'v' prefix and parse version
+    CURRENT_VERSION="${LATEST_TAG#v}"
+    
+    # Split version into parts
+    MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+    MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+    PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+    
+    # Increment minor version
+    PATCH=$((PATCH + 1))
+    VERSION="${MAJOR}.${MINOR}.${PATCH}"
+    
+    echo "Latest version: v${CURRENT_VERSION}"
+  fi
+fi
+
+# Confirmation prompt
+echo ""
+echo "========================================="
+echo "This will create release v${VERSION}"
+echo "========================================="
+echo ""
+read -p "Do you want to continue? (y/N) " -n 1 -r
+echo ""
+
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+  echo "Release cancelled."
   exit 1
 fi
+
+echo "Creating release v${VERSION}..."
 git tag -a v${VERSION} -m "Release v${VERSION}"
 git push origin v${VERSION}
+echo "Release v${VERSION} created successfully!"
 '''
 
