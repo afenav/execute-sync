@@ -29,7 +29,7 @@ func NewSQLServer(dsn string, chunkSize int) (*SQLServer, error) {
 func bootstrap(db *sql.DB) error {
 	// Create the main table if it doesn't exist
 	_, err := db.Exec(fmt.Sprintf(`
-	IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[%s]') AND type in (N'U'))
+	IF OBJECT_ID('[%s]', 'U') IS NULL
 	BEGIN
 		CREATE TABLE [%s] (
 			BATCH_DATE DATETIME2 NOT NULL,
