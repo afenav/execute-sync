@@ -86,5 +86,34 @@ func FetchSchema(cfg config.Config) (RootSchema, error) {
 		return nil, fmt.Errorf("parsing schema: %v", err)
 	}
 
+	if cfg.HideInactiveFields {
+		filterInactiveFields(data)
+	}
+
 	return data, nil
+}
+
+func filterInactiveFields(schema RootSchema) {
+	for docName, docSchema := range schema {
+		filterInactiveDocumentFields(docSchema)
+		schema[docName] = docSchema
+	}
+}
+
+func filterInactiveDocumentFields(fields map[string]FieldMetadata) {
+	for fieldName, field := range fields {
+		if !field.Active {
+			delete(fields, fieldName)
+			continue
+		}
+
+		if len(field.RecordType) > 0 {
+			filterInactiveDocumentFields(field.RecordType)
+			if len(field.RecordType) == 0 {
+				field.RecordType = nil
+			}
+		}
+
+		fields[fieldName] = field
+	}
 }
