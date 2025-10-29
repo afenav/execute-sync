@@ -15,15 +15,15 @@ type Config struct {
 	ExecuteURL       string `env:"EXECUTE_URL" flag:"execute-url" usage:"The Execute API URL" alias:"u" required:"true"`
 	ExecuteKeyId     string `env:"EXECUTE_APIKEY_ID" flag:"execute-key-id" usage:"The Execute API Key ID" required:"true"`
 	ExecuteKeySecret string `env:"EXECUTE_APIKEY_SECRET" flag:"execute-key-secret" usage:"The Execute API Key Secret" required:"true"`
-	MaxDocuments     int    `env:"MAX_DOCUMENTS" def:"1000" flag:"max-documents" usage:"Maximum number of documents to fetch" alias:"m" default:"10000"`
+	MaxDocuments     int    `env:"MAX_DOCUMENTS" flag:"max-documents" usage:"Maximum number of documents to fetch" alias:"m" default:"10000"`
 	DatabaseType     string `env:"DATABASE_TYPE" flag:"database-type" usage:"Type of database connection" required:"true"`
 	DatabaseDSN      string `env:"DATABASE_DSN" flag:"database-dsn" usage:"DSN for database connection" required:"true"`
-	StateDir         string `env:"STATE_DIR" def:"." flag:"state-dir" usage:"Directory to store state files" alias:"d" default:"."`
-	Wait             int    `env:"WAIT" def:"600" flag:"wait" usage:"Wait time in seconds" default:"600"`
-	ChunkSize        int    `env:"CHUNK_SIZE" def:"10000" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
-	IncludeCalcs     bool   `env:"INCLUDE_CALCS" def:"false" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
+	StateDir         string `env:"STATE_DIR" flag:"state-dir" usage:"Directory to store state files" alias:"d" default:"."`
+	Wait             int    `env:"WAIT" flag:"wait" usage:"Wait time in seconds" default:"600"`
+	ChunkSize        int    `env:"CHUNK_SIZE" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
+	IncludeCalcs     bool   `env:"INCLUDE_CALCS" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
 	LogLevel         string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
-	Force            bool   `env:"FORCE" def:"false" flag:"force" usage:"Force operation" default:"false"`
+	Force            bool   `env:"FORCE" flag:"force" usage:"Force operation" default:"false"`
 	LogFile          string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
 }
 
@@ -61,19 +61,21 @@ func GetFlags() []cli.Flag {
 				Usage:       usage,
 				EnvVars:     envvars,
 				Aliases:     aliases,
+				Value:       def,
 				DefaultText: def,
 			})
 		case reflect.Int:
-			defVal, _ := strconv.Atoi(def)
+			defVal := mustParseInt(field.Name, def)
 			flags = append(flags, &cli.IntFlag{
-				Name:    flagName,
-				Usage:   usage,
-				EnvVars: envvars,
-				Aliases: aliases,
-				Value:   defVal,
+				Name:        flagName,
+				Usage:       usage,
+				EnvVars:     envvars,
+				Aliases:     aliases,
+				Value:       defVal,
+				DefaultText: def,
 			})
 		case reflect.Bool:
-			defVal, _ := strconv.ParseBool(def)
+			defVal := mustParseBool(field.Name, def)
 			flags = append(flags, &cli.BoolFlag{
 				Name:    flagName,
 				Usage:   usage,
@@ -91,6 +93,8 @@ func ResolveConfig(cCtx *cli.Context) Config {
 	cfgVal := reflect.ValueOf(&cfg).Elem()
 	cfgType := cfgVal.Type()
 
+	applyDefaults(cfgVal)
+
 	// Parse the configuration (environment, with .env override)
 	if fileExists(".env") {
 		if err := env.Load(".env"); err != nil {
@@ -102,9 +106,7 @@ func ResolveConfig(cCtx *cli.Context) Config {
 		}
 	}
 
-	if err := env.Unmarshal("EXECUTESYNC_", &cfg); err != nil {
-		log.Fatal(err)
-	}
+	applyEnvOverrides(cfgVal)
 
 	for i := 0; i < cfgType.NumField(); i++ {
 		field := cfgType.Field(i)
@@ -168,4 +170,74 @@ func fileExists(filePath string) bool {
 		return false
 	}
 	return err == nil
+}
+
+func applyDefaults(cfgVal reflect.Value) {
+	cfgType := cfgVal.Type()
+	for i := 0; i < cfgType.NumField(); i++ {
+		field := cfgType.Field(i)
+		def := field.Tag.Get("default")
+		if def == "" {
+			continue
+		}
+
+		val := cfgVal.Field(i)
+		switch field.Type.Kind() {
+		case reflect.String:
+			val.SetString(def)
+		case reflect.Int:
+			val.SetInt(int64(mustParseInt(field.Name, def)))
+		case reflect.Bool:
+			val.SetBool(mustParseBool(field.Name, def))
+		}
+	}
+}
+
+func applyEnvOverrides(cfgVal reflect.Value) {
+	cfgType := cfgVal.Type()
+	for i := 0; i < cfgType.NumField(); i++ {
+		field := cfgType.Field(i)
+		envTag := field.Tag.Get("env")
+		if envTag == "" {
+			continue
+		}
+
+		key := "EXECUTESYNC_" + envTag
+		value, ok := os.LookupEnv(key)
+		if !ok {
+			continue
+		}
+
+		val := cfgVal.Field(i)
+		switch field.Type.Kind() {
+		case reflect.String:
+			val.SetString(value)
+		case reflect.Int:
+			val.SetInt(int64(mustParseInt(field.Name, value)))
+		case reflect.Bool:
+			val.SetBool(mustParseBool(field.Name, value))
+		}
+	}
+}
+
+func mustParseInt(fieldName, value string) int {
+	if value == "" {
+		return 0
+	}
+	intVal, err := strconv.Atoi(value)
+	if err != nil {
+		log.Fatalf("invalid integer value %q for %s: %v", value, fieldName, err)
+	}
+	return intVal
+}
+
+func mustParseBool(fieldName, value string) bool {
+	if value == "" {
+		return false
+	}
+	boolVal, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("invalid boolean value %q for %s: %v", value, fieldName, err)
+	}
+	return boolVal
 }
