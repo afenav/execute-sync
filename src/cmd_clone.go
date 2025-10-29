@@ -20,7 +20,6 @@ func CloneCommand() *cli.Command {
 				if err != nil {
 					return err
 				}
-
 				err = db.CreateViews(views)
 				if err != nil {
 					return err

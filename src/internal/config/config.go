@@ -12,19 +12,20 @@ import (
 )
 
 type Config struct {
-	ExecuteURL       string `env:"EXECUTE_URL" flag:"execute-url" usage:"The Execute API URL" alias:"u" required:"true"`
-	ExecuteKeyId     string `env:"EXECUTE_APIKEY_ID" flag:"execute-key-id" usage:"The Execute API Key ID" required:"true"`
-	ExecuteKeySecret string `env:"EXECUTE_APIKEY_SECRET" flag:"execute-key-secret" usage:"The Execute API Key Secret" required:"true"`
-	MaxDocuments     int    `env:"MAX_DOCUMENTS" flag:"max-documents" usage:"Maximum number of documents to fetch" alias:"m" default:"10000"`
-	DatabaseType     string `env:"DATABASE_TYPE" flag:"database-type" usage:"Type of database connection" required:"true"`
-	DatabaseDSN      string `env:"DATABASE_DSN" flag:"database-dsn" usage:"DSN for database connection" required:"true"`
-	StateDir         string `env:"STATE_DIR" flag:"state-dir" usage:"Directory to store state files" alias:"d" default:"."`
-	Wait             int    `env:"WAIT" flag:"wait" usage:"Wait time in seconds" default:"600"`
-	ChunkSize        int    `env:"CHUNK_SIZE" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
-	IncludeCalcs     bool   `env:"INCLUDE_CALCS" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
-	LogLevel         string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
-	Force            bool   `env:"FORCE" flag:"force" usage:"Force operation" default:"false"`
-	LogFile          string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
+	ExecuteURL         string `env:"EXECUTE_URL" flag:"execute-url" usage:"The Execute API URL" alias:"u" required:"true"`
+	ExecuteKeyId       string `env:"EXECUTE_APIKEY_ID" flag:"execute-key-id" usage:"The Execute API Key ID" required:"true"`
+	ExecuteKeySecret   string `env:"EXECUTE_APIKEY_SECRET" flag:"execute-key-secret" usage:"The Execute API Key Secret" required:"true"`
+	MaxDocuments       int    `env:"MAX_DOCUMENTS" flag:"max-documents" usage:"Maximum number of documents to fetch" alias:"m" default:"10000"`
+	DatabaseType       string `env:"DATABASE_TYPE" flag:"database-type" usage:"Type of database connection" required:"true"`
+	DatabaseDSN        string `env:"DATABASE_DSN" flag:"database-dsn" usage:"DSN for database connection" required:"true"`
+	StateDir           string `env:"STATE_DIR" flag:"state-dir" usage:"Directory to store state files" alias:"d" default:"."`
+	Wait               int    `env:"WAIT" flag:"wait" usage:"Wait time in seconds" default:"600"`
+	ChunkSize          int    `env:"CHUNK_SIZE" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
+	IncludeCalcs       bool   `env:"INCLUDE_CALCS" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
+  HideInactiveFields bool   `env:"HIDE_INACTIVE_FIELDS" flag:"hide-inactive-fields" usage:"Hide inactive fields when retrieving schemas" default:"false"`
+  LogLevel           string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
+	Force              bool   `env:"FORCE" flag:"force" usage:"Force operation" default:"false"`
+	LogFile            string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
 }
 
 // GetFlags returns the CLI flags for the application, centralized here for consistency
