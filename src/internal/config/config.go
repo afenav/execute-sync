@@ -15,15 +15,16 @@ type Config struct {
 	ExecuteURL       string `env:"EXECUTE_URL" flag:"execute-url" usage:"The Execute API URL" alias:"u" required:"true"`
 	ExecuteKeyId     string `env:"EXECUTE_APIKEY_ID" flag:"execute-key-id" usage:"The Execute API Key ID" required:"true"`
 	ExecuteKeySecret string `env:"EXECUTE_APIKEY_SECRET" flag:"execute-key-secret" usage:"The Execute API Key Secret" required:"true"`
-	MaxDocuments     int    `env:"MAX_DOCUMENTS" def:"1000" flag:"max-documents" usage:"Maximum number of documents to fetch" alias:"m" default:"10000"`
+	MaxDocuments     int    `env:"MAX_DOCUMENTS" flag:"max-documents" usage:"Maximum number of documents to fetch" alias:"m" default:"10000"`
 	DatabaseType     string `env:"DATABASE_TYPE" flag:"database-type" usage:"Type of database connection" required:"true"`
 	DatabaseDSN      string `env:"DATABASE_DSN" flag:"database-dsn" usage:"DSN for database connection" required:"true"`
-	StateDir         string `env:"STATE_DIR" def:"." flag:"state-dir" usage:"Directory to store state files" alias:"d" default:"."`
-	Wait             int    `env:"WAIT" def:"600" flag:"wait" usage:"Wait time in seconds" default:"600"`
-	ChunkSize        int    `env:"CHUNK_SIZE" def:"10000" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
-	IncludeCalcs     bool   `env:"INCLUDE_CALCS" def:"false" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
+	StateDir         string `env:"STATE_DIR" flag:"state-dir" usage:"Directory to store state files" alias:"d" default:"."`
+	Wait             int    `env:"WAIT" flag:"wait" usage:"Wait time in seconds" default:"600"`
+	ChunkSize        int    `env:"CHUNK_SIZE" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
+	IncludeCalcs     bool   `env:"INCLUDE_CALCS" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
+	HideInactive     bool   `env:"HIDE_INACTIVE" flag:"hide-inactive" usage:"Don't include inactive fields in helper views" alias:"a" default:"false"`
 	LogLevel         string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
-	Force            bool   `env:"FORCE" def:"false" flag:"force" usage:"Force operation" default:"false"`
+	Force            bool   `env:"FORCE" flag:"force" usage:"Force operation" default:"false"`
 	LogFile          string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
 }
 
@@ -86,6 +87,46 @@ func GetFlags() []cli.Flag {
 	return flags
 }
 
+// applyDefaults sets default values on the config struct based on the "default" tag
+// unless shouldSkip returns true for the field.
+func applyDefaults(cfg *Config, shouldSkip func(reflect.StructField) bool) {
+	cfgVal := reflect.ValueOf(cfg).Elem()
+	cfgType := cfgVal.Type()
+
+	for i := 0; i < cfgType.NumField(); i++ {
+		field := cfgType.Field(i)
+		defaultValue := field.Tag.Get("default")
+
+		if defaultValue == "" {
+			continue
+		}
+
+		if shouldSkip != nil && shouldSkip(field) {
+			continue
+		}
+
+		val := cfgVal.Field(i)
+		switch field.Type.Kind() {
+		case reflect.String:
+			if val.String() == "" {
+				val.SetString(defaultValue)
+			}
+		case reflect.Int:
+			if val.Int() == 0 {
+				if defVal, err := strconv.Atoi(defaultValue); err == nil {
+					val.SetInt(int64(defVal))
+				}
+			}
+		case reflect.Bool:
+			if !val.Bool() {
+				if defVal, err := strconv.ParseBool(defaultValue); err == nil {
+					val.SetBool(defVal)
+				}
+			}
+		}
+	}
+}
+
 func ResolveConfig(cCtx *cli.Context) Config {
 	var cfg Config
 	cfgVal := reflect.ValueOf(&cfg).Elem()
@@ -105,6 +146,23 @@ func ResolveConfig(cCtx *cli.Context) Config {
 	if err := env.Unmarshal("EXECUTESYNC_", &cfg); err != nil {
 		log.Fatal(err)
 	}
+
+	envOverrides := map[string]struct{}{}
+	for i := 0; i < cfgType.NumField(); i++ {
+		field := cfgType.Field(i)
+		envTag := field.Tag.Get("env")
+		if envTag == "" {
+			continue
+		}
+		if _, ok := os.LookupEnv("EXECUTESYNC_" + envTag); ok {
+			envOverrides[field.Name] = struct{}{}
+		}
+	}
+
+	applyDefaults(&cfg, func(field reflect.StructField) bool {
+		_, skip := envOverrides[field.Name]
+		return skip
+	})
 
 	for i := 0; i < cfgType.NumField(); i++ {
 		field := cfgType.Field(i)

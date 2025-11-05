@@ -86,5 +86,35 @@ func FetchSchema(cfg config.Config) (RootSchema, error) {
 		return nil, fmt.Errorf("parsing schema: %v", err)
 	}
 
+	// Filter out inactive fields if requested
+	if cfg.HideInactive {
+		data = filterInactiveFields(data)
+	}
+
 	return data, nil
+}
+
+// filterInactiveFields removes inactive fields from the schema
+func filterInactiveFields(schema RootSchema) RootSchema {
+	filtered := make(RootSchema)
+	for docType, docSchema := range schema {
+		filtered[docType] = filterDocumentSchema(docSchema)
+	}
+	return filtered
+}
+
+// filterDocumentSchema recursively filters inactive fields from a document schema
+func filterDocumentSchema(schema DocumentSchema) DocumentSchema {
+	filtered := make(DocumentSchema)
+	for fieldName, metadata := range schema {
+		if !metadata.Active {
+			continue
+		}
+		// Recursively filter nested RECORD types
+		if metadata.RecordType != nil {
+			metadata.RecordType = filterDocumentSchema(metadata.RecordType)
+		}
+		filtered[fieldName] = metadata
+	}
+	return filtered
 }
