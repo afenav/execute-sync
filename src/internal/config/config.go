@@ -22,8 +22,8 @@ type Config struct {
 	Wait               int    `env:"WAIT" flag:"wait" usage:"Wait time in seconds" default:"600"`
 	ChunkSize          int    `env:"CHUNK_SIZE" flag:"chunk-size" usage:"Chunk size for processing large data" alias:"c" default:"10000"`
 	IncludeCalcs       bool   `env:"INCLUDE_CALCS" flag:"include-calcs" usage:"Include calculated values in fetch" alias:"x" default:"false"`
-  HideInactiveFields bool   `env:"HIDE_INACTIVE_FIELDS" flag:"hide-inactive-fields" usage:"Hide inactive fields when retrieving schemas" default:"false"`
-  LogLevel           string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
+	HideInactiveFields bool   `env:"HIDE_INACTIVE_FIELDS" flag:"hide-inactive-fields" usage:"Hide inactive fields when retrieving schemas" default:"false"`
+	LogLevel           string `env:"LOG_LEVEL" flag:"log-level" usage:"Log level: quiet, info, debug" alias:"l" default:"info"`
 	Force              bool   `env:"FORCE" flag:"force" usage:"Force operation" default:"false"`
 	LogFile            string `env:"LOG_FILE" flag:"log-file" usage:"Write logs to this file instead of STDERR"`
 }
