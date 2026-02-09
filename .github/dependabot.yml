@@ -9,6 +9,7 @@ updates:
       prefix: "chore"
       include: "scope"
     assignees:
-      - "jclement"    
+      - "kyle1024"
+      - "stillskates"
     labels:
       - "dependencies"
