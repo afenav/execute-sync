@@ -5,7 +5,7 @@ go 1.24.2
 require (
 	github.com/goloop/env v1.2.1
 	github.com/mattn/go-sqlite3 v1.14.33
-	github.com/snowflakedb/gosnowflake v1.18.1
+	github.com/snowflakedb/gosnowflake v1.19.0
 	github.com/urfave/cli/v2 v2.27.7
 	modernc.org/sqlite v1.40.0 // pinned
 )
