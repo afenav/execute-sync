@@ -78,7 +78,7 @@ require (
 
 require (
 	github.com/charmbracelet/log v0.4.2
-	github.com/databricks/databricks-sql-go v1.9.0
+	github.com/databricks/databricks-sql-go v1.10.0
 	github.com/denisenkom/go-mssqldb v0.12.3
 )
 
